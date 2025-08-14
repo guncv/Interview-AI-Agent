@@ -9,3 +9,20 @@ services:
       - .:/app
     environment:
       - ENV=dev
+  redis:
+    image: redis:latest
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    restart: always
+    networks:
+      - interview-sim-network
+
+volumes:
+  redis_data:
+
+networks:
+  interview-sim-network:
+    driver: bridge

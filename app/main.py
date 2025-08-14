@@ -6,6 +6,7 @@ from fastapi.exceptions import RequestValidationError, ResponseValidationError
 from prometheus_fastapi_instrumentator import Instrumentator
 from internal.utils.except_handler import validation_exception_handler, response_validation_exception_handler
 from internal.api.route import api_router_v1
+from internal.infra.log.logger import logger
 
 app = FastAPI(
     title=api_config.get("API_TITLE", "Interview Simulation API"),
