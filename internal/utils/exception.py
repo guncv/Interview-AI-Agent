@@ -3,7 +3,7 @@ import sys
 from enum import Enum
 from fastapi import HTTPException
 from fastapi.responses import JSONResponse
-from internal.domain.error_code import InterviewSimulationErrorCodes
+from internal.domain.exception import InterviewSimulationErrorCodes
 
 class InterviewSimulationExceptionBase(Exception):
     def __init__(self, error_code: Enum , description: str, *args, **kwargs):

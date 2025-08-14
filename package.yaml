@@ -7,3 +7,5 @@ dependencies:
   - fastapi>=0.111
   - gunicorn
   - prometheus-fastapi-instrumentator
+  - coloredlogs
+  - python-json-logger

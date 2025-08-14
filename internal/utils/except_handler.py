@@ -1,7 +1,7 @@
 from fastapi import Request
 from fastapi.exceptions import RequestValidationError, ResponseValidationError
 
-from internal.domain.error_code import InterviewSimulationErrorCodes
+from internal.domain.exception import InterviewSimulationErrorCodes
 from internal.utils.exception import InterviewSimulationException
 
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
