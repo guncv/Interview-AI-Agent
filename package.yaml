@@ -1,0 +1,9 @@
+name: interview-sim-server
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - pip>=23
+  - fastapi>=0.111
+  - gunicorn
+  - prometheus-fastapi-instrumentator

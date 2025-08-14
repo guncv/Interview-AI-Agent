@@ -1,0 +1,31 @@
+# 🐍 Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# 🛠️ IDE/editor config
+.vscode/
+.idea/
+
+# 🌱 Envs and test cache
+.env
+.env.*
+pytest_cache/
+htmlcov/
+
+# 📓 Notebooks or temp files
+*.ipynb
+*.log
+.DS_Store
+
+# 📁 Uploaded files (long filenames, heavy PDFs)
+app/uploaded_files/
+**/uploaded_files/
+**/uploaded_files/**
+**/*.pdf
+
+# 🐳 Docker build artifacts and noise
+docker-compose.override.yaml
+Dockerfile
+Dockerfile.dev

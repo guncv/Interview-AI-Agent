@@ -1,0 +1,97 @@
+llm:
+  provider: openai
+  model: gpt-4o-mini
+  temperature: 0.5
+  max_tokens: 1024
+  api_key: ${LLM_OPENAI_API_KEY}
+
+memory:
+  provider: qdrant
+  host: "localhost"
+  port: 6333
+
+tools:
+  enabled: true
+  custom_tools:
+    - say_hello
+    - calculator
+
+api:
+  title: "Interview Simulation API - Dev"
+  version: "1.0.0-dev"
+  prefix: "/api/v1"
+  port: 8000
+
+database:
+  dialect: "postgresql"
+  address: "${DB_HOST:localhost}"
+  name: "${DB_NAME:interview_sim_dev}"
+  port: "${DB_PORT:5432}"
+  username: "${DB_USERNAME:postgres}"
+  password: "${DB_PASSWORD}"
+
+backend:
+  api_base_url: "${BACKEND_API_BASE_URL:http://localhost:8080}"
+
+model:
+  api_key: "${MODEL_API_KEY}"
+  name: "${MODEL_NAME:gpt-4o-mini}"
+
+pinecone:
+  api_key: "${PINECONE_API_KEY}"
+  environment: "${PINECONE_ENV:us-east-1-aws}"
+  index_name: "${PINECONE_IDX_NAME:interview-sim-dev}"
+  dimensions: "${PINECONE_DIMS:1536}"
+  metric: "${PINECONE_METRIC:cosine}"
+  
+logging:
+  level: "DEBUG"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  provider: openai
+  model: gpt-4o-mini
+  temperature: 0.5
+  max_tokens: 1024
+  api_key: ${LLM_OPENAI_API_KEY}
+
+memory:
+  provider: qdrant
+  host: "localhost"
+  port: 6333
+
+tools:
+  enabled: true
+  custom_tools:
+    - say_hello
+    - calculator
+
+api:
+  title: "Interview Simulation API - Dev"
+  version: "1.0.0-dev"
+  prefix: "/api/v1"
+  port: 8000
+
+database:
+  dialect: "postgresql"
+  address: "${DB_HOST:localhost}"
+  name: "${DB_NAME:interview_sim_dev}"
+  port: "${DB_PORT:5432}"
+  username: "${DB_USERNAME:postgres}"
+  password: "${DB_PASSWORD}"
+
+backend:
+  api_base_url: "${BACKEND_API_BASE_URL:http://localhost:8080}"
+
+model:
+  api_key: "${MODEL_API_KEY}"
+  name: "${MODEL_NAME:gpt-4o-mini}"
+
+pinecone:
+  api_key: "${PINECONE_API_KEY}"
+  environment: "${PINECONE_ENV:us-east-1-aws}"
+  index_name: "${PINECONE_IDX_NAME:interview-sim-dev}"
+  dimensions: "${PINECONE_DIMS:1536}"
+  metric: "${PINECONE_METRIC:cosine}"
+
+logging:
+  level: "DEBUG"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
