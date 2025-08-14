@@ -1,6 +1,5 @@
 from enum import Enum
 
-
 class InterviewStep(Enum):
     ROLE_SELECTION = 1
     ASK_QUESTION = 2

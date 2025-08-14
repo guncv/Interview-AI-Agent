@@ -9,6 +9,8 @@ services:
       - .:/app
     environment:
       - ENV=dev
+    env_file:
+      - .env.dev
   redis:
     image: redis:latest
     ports:

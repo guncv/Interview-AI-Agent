@@ -12,3 +12,6 @@ class InterviewState(BaseModel):
     score: Optional[float] = None
     is_finished: bool = False
     error_message: Optional[str] = None
+
+class AskQuestionRes(BaseModel):
+    message: str

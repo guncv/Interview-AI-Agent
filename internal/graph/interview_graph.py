@@ -1,7 +1,7 @@
 from internal.infra.log.logger import logger
 from internal.graph.interview_step import InterviewStep
-from internal.graph.interview_state import InterviewState
-from internal.graph.interview_step import ASK_QUESTION_PROMPT, AskQuestionRes
+from internal.graph.interview_state import InterviewState, AskQuestionRes
+from internal.llm.prompt_builder import ASK_QUESTION_PROMPT
 from langgraph.graph import StateGraph, END
 from internal.llm.loader import getChatHistory
 from langchain_core.runnables import RunnableWithMessageHistory
@@ -17,49 +17,49 @@ class InterviewGraph:
     def _build_graph(self):
         wf = StateGraph(InterviewState)
         
-        wf.add_node(InterviewStep.ROLE_SELECTION.value, self._router_node)
-        wf.add_node(InterviewStep.ASK_QUESTION.value, self._ask_question_node)
-        wf.add_node(InterviewStep.PARSE_ANSWER.value, self._parse_answer_node)
-        wf.add_node(InterviewStep.GIVE_FEEDBACK.value, self._give_feedback_node)
-        wf.add_node(InterviewStep.END_INTERVIEW.value, self._end_interview_node)
-        wf.add_node(InterviewStep.ERROR.value, self._error_handler_node)
+        wf.add_node(InterviewState.ROLE_SELECTION.value, self._router_node)
+        wf.add_node(InterviewState.ASK_QUESTION.value, self._ask_question_node)
+        wf.add_node(InterviewState.PARSE_ANSWER.value, self._parse_answer_node)
+        wf.add_node(InterviewState.GIVE_FEEDBACK.value, self._give_feedback_node)
+        wf.add_node(InterviewState.END_INTERVIEW.value, self._end_interview_node)
+        wf.add_node(InterviewState.ERROR.value, self._error_handler_node)
 
-        wf.set_entry_point(InterviewStep.ROLE_SELECTION.value)
+        wf.set_entry_point(InterviewState.ROLE_SELECTION.value)
 
         wf.add_conditional_edges(
-            InterviewStep.ROLE_SELECTION.value,
+            InterviewState.ROLE_SELECTION.value,
             self._route_from_state,
             {
-                InterviewStep.ASK_QUESTION.value: InterviewStep.ASK_QUESTION.value,
-                InterviewStep.PARSE_ANSWER.value: InterviewStep.PARSE_ANSWER.value,
-                InterviewStep.GIVE_FEEDBACK.value: InterviewStep.GIVE_FEEDBACK.value,
-                InterviewStep.END_INTERVIEW.value: InterviewStep.END_INTERVIEW.value,
-                InterviewStep.ERROR.value: InterviewStep.ERROR.value,
+                InterviewState.ASK_QUESTION.value: InterviewState.ASK_QUESTION.value,
+                InterviewState.PARSE_ANSWER.value: InterviewState.PARSE_ANSWER.value,
+                InterviewState.GIVE_FEEDBACK.value: InterviewState.GIVE_FEEDBACK.value,
+                InterviewState.END_INTERVIEW.value: InterviewState.END_INTERVIEW.value,
+                InterviewState.ERROR.value: InterviewState.ERROR.value,
             },
         )
 
         for node in [
-            InterviewStep.ASK_QUESTION.value,
-            InterviewStep.PARSE_ANSWER.value,
-            InterviewStep.GIVE_FEEDBACK.value,
+            InterviewState.ASK_QUESTION.value,
+            InterviewState.PARSE_ANSWER.value,
+            InterviewState.GIVE_FEEDBACK.value,
         ]:
             wf.add_conditional_edges(
                 node,
                 self._after_node_continue_or_pause,
                 {
-                    "continue": InterviewStep.ROLE_SELECTION.value,
+                    "continue": InterviewState.ROLE_SELECTION.value,
                     "pause": END,
                 },
             )
             
-        wf.add_edge(InterviewStep.END_INTERVIEW.value, END)
-        wf.add_edge(InterviewStep.ERROR.value, END)
+        wf.add_edge(InterviewState.END_INTERVIEW.value, END)
+        wf.add_edge(InterviewState.ERROR.value, END)
         return wf.compile()
 
     def _router_node(self, state: InterviewState) -> InterviewState:
         return state
 
-    def _route_from_state(self, state: InterviewState) -> InterviewStep:
+    def _route_from_state(self, state: InterviewState) -> InterviewState:
         return state.current_step
 
     def _ask_question_node(self, state: InterviewState) -> InterviewState:
@@ -69,26 +69,23 @@ class InterviewGraph:
         
         logger.info(f"[VALIDATION OUTPUT]: out={out}")
         
-        if out.is_emergency_valid:
-            current_step = InterviewStep.ASK_QUESTION
-        else:
-            current_step = InterviewStep.ERROR
+        current_step = InterviewState.ASK_QUESTION
         
         return state.model_copy(update={
             "message": out.message,
             "current_step": current_step,
         })
+        
     def _error_handler_node(self, state: InterviewState) -> InterviewState:
         logger.error(f"[ERROR_HANDLER]: {state.error_message}")
         return state.model_copy(update={
             "message": "ขออภัยครับ เกิดข้อผิดพลาดในการประมวลผล กรุณาลองใหม่อีกครั้ง",
             "match_score": 0,
-            "current_step": InterviewStep.ERROR,
+            "current_step": InterviewState.ERROR,
         })
     
     def _after_node_continue_or_pause(self, state: InterviewState) -> str:
         return "pause" if state.should_pause else "continue"
-
 
     def _invoke_node(self, prompt, schema, session_id: str, user_input: str):
         chat_history = getChatHistory(session_id)
@@ -153,7 +150,7 @@ class InterviewGraph:
                 initial_state = InterviewState(
                     session_id=session_id,
                     user_input=user_input,
-                    current_step=InterviewStep.ROLE_SELECTION,
+                    current_step=InterviewState.ASK_QUESTION,
                     message="",
                     match_score=0,
                 )
@@ -172,9 +169,9 @@ class InterviewGraph:
             save_state(session_id, normalized)
 
             if normalized.current_step in (
-                InterviewStep.REJECT,
-                InterviewStep.END_CONVERSATION,
-                InterviewStep.ERROR,
+                InterviewState.REJECT,
+                InterviewState.END_CONVERSATION,
+                InterviewState.ERROR,
             ):
                 clear_state(session_id)
                 clearMemory(session_id)
@@ -186,7 +183,7 @@ class InterviewGraph:
             err = InterviewState(
                 session_id=session_id,
                 user_input=user_input,
-                current_step=InterviewStep.ERROR,
+                current_step=InterviewState.ERROR,
                 message="ขออภัยครับ เกิดข้อผิดพลาดในการประมวลผล กรุณาลองใหม่อีกครั้ง",
                 match_score=0,
                 error_message=str(e),
