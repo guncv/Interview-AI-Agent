@@ -2,7 +2,7 @@ from internal.domain.models.interview import HealthCheckResponse, InterviewReque
 from internal.utils.exception import InterviewSimulationException
 from internal.domain.exception import InterviewSimulationErrorCodes
 from internal.infra.log.logger import logger
-from internal.graph.interview_graph import InterviewGraph
+from internal.graph.interview.interview_graph import InterviewGraph
 from internal.llm.loader import llm
 
 class InterviewService:

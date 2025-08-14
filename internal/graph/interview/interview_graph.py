@@ -1,6 +1,6 @@
 from internal.infra.log.logger import logger
-from internal.graph.interview_step import InterviewStep, InterviewNode
-from internal.graph.interview_state import InterviewState, AskQuestionRes
+from internal.graph.interview.interview_step import InterviewStep, InterviewNode
+from internal.graph.interview.interview_state import InterviewState, AskQuestionRes
 from internal.llm.prompt_builder import ASK_QUESTION_PROMPT
 from langgraph.graph import StateGraph, END
 from internal.llm.loader import getChatHistory
