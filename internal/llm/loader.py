@@ -1,6 +1,5 @@
 from internal.config.config import nested_config as config
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_core.runnables import RunnableWithMessageHistory
 from langchain_community.chat_message_histories import ChatMessageHistory
 from internal.infra.log.logger import logger
 from internal.llm.state_store import getMemory
@@ -44,12 +43,7 @@ prompt = ChatPromptTemplate.from_messages([
     ("human", "{input}"),
 ])
 
-# chain_core = prompt | llm
-
 def getChatHistory(session_id: str) -> ChatMessageHistory:
     logger.info(f"[getChatHistory: Called]: {session_id}")
     memory: ChatMessageHistory = getMemory(session_id)
     return memory
-
-# def getChain():
-#     return chain

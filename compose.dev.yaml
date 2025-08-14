@@ -9,22 +9,23 @@ services:
       - .:/app
     environment:
       - ENV=dev
+      - REDIS_URL=redis://redis:6379/0
     env_file:
       - .env.dev
+
   redis:
-    image: redis:latest
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
     ports:
       - "6379:6379"
     volumes:
-      - redis_data:/data
-    command: redis-server --appendonly yes
-    restart: always
-    networks:
-      - interview-sim-network
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
 
 volumes:
-  redis_data:
-
-networks:
-  interview-sim-network:
-    driver: bridge
+  redis-data:
