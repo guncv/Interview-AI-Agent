@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from typing import Optional
-from internal.graph.interview_step import InterviewStep
+from internal.graph.interview.interview_step import InterviewStep
 
 class InterviewState(BaseModel):
     session_id: str

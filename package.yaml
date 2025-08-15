@@ -40,3 +40,4 @@ dependencies:
       - prometheus-fastapi-instrumentator
       - gTTS
       - sentence-transformers
+      - pymupdf
