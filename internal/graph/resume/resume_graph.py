@@ -7,7 +7,7 @@ from langchain_core.runnables import RunnableWithMessageHistory
 from internal.infra.db.redis import save_resume_state, load_resume_state, clear_state, acquire_lock, release_lock
 from internal.llm.state_store import clearMemory
 from langchain_core.runnables import RunnableLambda
-from internal.graph.resume.resume_state import ResumeState
+from internal.graph.resume.resume_state import ResumeState, PromptInfo
 from internal.domain.models.interview import RequirementsRequest
 import fitz
 from io import BytesIO
@@ -101,51 +101,14 @@ class ResumeGraph:
 
     def _extract_info_node(self, state: ResumeState) -> ResumeState:
         try:
-            runnable_struct = EXTRACT_INFO_PROMPT
-
-            data = runnable_struct.invoke(
-                {
-                    "resume_text": state.resume_text,
-                    "position": state.position,
-                    "company": state.company,
-                    "job_requirements": state.job_requirements,
-                    "work_type": state.work_type,
-                    "interview_type": state.interview_type,
-                    "language": state.language
-                },
-                config={"configurable": {"session_id": state.session_id}},
-            )
-
-            try:
-                if hasattr(data, 'content'):
-                    content = data.content
-                else:
-                    content = data
+            prompt_info = self._invoke_node(EXTRACT_INFO_PROMPT, PromptInfo, state.session_id, state.resume_text)
                 
-                if isinstance(content, str):
-                    try:
-                        prompt_info = json.loads(content)
-                        logger.info(f"[EXTRACT_INFO] Successfully parsed JSON response")
-                    except json.JSONDecodeError:
-                        logger.warning(f"[EXTRACT_INFO] Response is not valid JSON, storing as string")
-                        prompt_info = {"raw_response": content}
-                else:
-                    prompt_info = content
-                
-                return state.model_copy(update={
-                    "current_step": ResumeStep.INCOMPLETE,
-                    "should_pause": False,
-                    "prompt_info": prompt_info,
-                    "resume_text": state.resume_text,
-                })
-                
-            except Exception as parse_error:
-                logger.error(f"[EXTRACT_INFO] Error parsing LLM response: {parse_error}")
-                return state.model_copy(update={
-                    "current_step": ResumeStep.ERROR,
-                    "error_message": f"Failed to parse LLM response: {str(parse_error)}",
-                    "should_pause": True,
-                })
+            return state.model_copy(update={
+                "current_step": ResumeStep.INCOMPLETE,
+                "should_pause": False,
+                "prompt_info": prompt_info,
+                "resume_text": state.resume_text,
+            })
                 
         except Exception as e:
             logger.error(f"[EXTRACT_INFO] Error in extract_info_node: {e}")
@@ -166,7 +129,7 @@ class ResumeGraph:
     def _incomplete_node(self, state: ResumeState) -> ResumeState:
         logger.info(f"[INCOMPLETE] Processing incomplete for session {state.session_id}")
         
-        if state.parsed_info:
+        if state.prompt_info:
             logger.info(f"[INCOMPLETE] Resume processing completed successfully")
             return state.model_copy(update={
                 "current_step": ResumeStep.INCOMPLETE,
@@ -190,12 +153,9 @@ class ResumeGraph:
     def _after_node_continue_or_pause(self, state: ResumeState) -> str:
         return "pause" if state.should_pause else "continue"
 
-    def _invoke_node(self, prompt, schema, session_id: str, user_input: str):
-        chat_history = getChatHistory(session_id)
-        msgs = getattr(chat_history, "messages", [])
-
-        runnable_struct = prompt | self.llm.with_structured_output(schema)
-
+    def _invoke_node(self, prompt, schema, session_id: str, resume_text: str):
+        prompt_info = prompt | self.llm.with_structured_output(schema)
+        
         def to_both(x):
             d = x.model_dump() if hasattr(x, "model_dump") else x
             msg = d.get("message")
@@ -204,41 +164,13 @@ class ResumeGraph:
                 msg = json.dumps(d, ensure_ascii=False)
             return {"raw": d, "output": msg}
 
-        runnable_both = runnable_struct | RunnableLambda(to_both)
+        runnable_both = prompt_info | RunnableLambda(to_both)
 
-        def _get_history_for_langchain(config):
-            try:
-                if isinstance(config, str):
-                    sid = config
-                elif isinstance(config, dict):
-                    sid = config.get("configurable", {}).get("session_id") \
-                        or config.get("configurable", {}).get("thread_id") \
-                        or config.get("session_id") \
-                        or config.get("thread_id") \
-                        or session_id
-                else:
-                    sid = session_id
-            except Exception:
-                sid = session_id
-
-            return getChatHistory(sid)
-
-        chain = RunnableWithMessageHistory(
-            runnable=runnable_both,
-            get_session_history=_get_history_for_langchain,
-            input_messages_key="input",
-            history_messages_key="history",
-            output_messages_key="output",
-        )
-
-        data = chain.invoke(
-            {"input": user_input},
+        data = runnable_both.invoke(
+            {"resume_text": resume_text},
             config={"configurable": {"session_id": session_id}},
         )
-
-        msgs_after = getattr(getChatHistory(session_id), "messages", [])
-        logger.info("[CHAT_HISTORY:after] sid=%s count=%d messages=%s", session_id, len(msgs_after), msgs_after)
-
+        
         return schema(**data["raw"])
 
     def invoke(self, request: RequirementsRequest) -> ResumeState:

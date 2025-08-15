@@ -14,7 +14,18 @@ class ResumeState(BaseModel):
     current_step: ResumeStep
 
     resume_text: Optional[str] = None
-    prompt_info: Optional[dict] = None
+    prompt_info: Optional['PromptInfo'] = None
     error_message: Optional[str] = None
     should_pause: Optional[bool] = False
     match_score: Optional[int] = 0
+    
+class PromptInfo(BaseModel):
+    full_name: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    location: Optional[str] = None
+    experience: Optional[list[str]] = None
+    education: Optional[list[str]] = None
+    skills: Optional[list[str]] = None
+    certifications: Optional[list[str]] = None
+    languages: Optional[str] = None
