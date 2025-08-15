@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from io import BytesIO
+from typing import Any, Optional
 
 class HealthCheckResponse(BaseModel):
     message: str
@@ -22,7 +23,4 @@ class RequirementsRequest(BaseModel):
     language: str
     
 class RequirementsResponse(BaseModel):
-    resume_text: str
-    parsed_info: dict
-    job_detail: str
-    enriched_context: str
+    prompt_info: Any

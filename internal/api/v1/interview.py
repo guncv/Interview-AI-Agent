@@ -35,7 +35,7 @@ async def interview_api(request: InterviewRequest):
         logger.error(f"[Interview API Error]: {e}")
         e.raise_HTTPException()
 
-@router.post("/requirements", status_code=RequirementsResponse)
+@router.post("/requirements")
 async def requirements_api(
     session_id: str = Form(...),
     position: str = Form(...),

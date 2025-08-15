@@ -1,4 +1,4 @@
-from internal.domain.models.interview import HealthCheckResponse, InterviewRequest, InterviewResponse, RequirementsRequest, RequirementsResponse
+from internal.domain.models.interview import HealthCheckResponse, InterviewRequest, RequirementsRequest, RequirementsResponse
 from internal.utils.exception import InterviewSimulationException
 from internal.domain.exception import InterviewSimulationErrorCodes
 from internal.infra.log.logger import logger
@@ -38,16 +38,17 @@ class InterviewService:
         logger.info(f"[Requirements Service Called: ]")
         try:
             resp = self.resume_graph.invoke(request)
-            
+        
             result = RequirementsResponse(
-                resume_text=resp.resume_text,
-                parsed_info=resp.parsed_info,
-                job_detail=resp.job_detail,
+                prompt_info=resp.prompt_info
             )
-            
+
             return result
         except (InterviewSimulationException, Exception) as e:
-            if type(e) != InterviewSimulationException:
-                e = InterviewSimulationException(error_code=InterviewSimulationErrorCodes.INTERNAL_ERROR, description=f"[{type(e).__name__}]: {str(e)}")
+            if not isinstance(e, InterviewSimulationException):
+                e = InterviewSimulationException(
+                    error_code=InterviewSimulationErrorCodes.INTERNAL_ERROR,
+                    description=f"[{type(e).__name__}]: {str(e)}"
+                )
             logger.error(f"[Requirements Service Error]: {e}")
             e.raise_HTTPException()

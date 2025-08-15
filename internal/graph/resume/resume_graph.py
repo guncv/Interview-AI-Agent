@@ -1,6 +1,6 @@
 from internal.infra.log.logger import logger
 from internal.graph.resume.resume_step import ResumeStep, ResumeNode
-from internal.llm.prompt_builder import ASK_QUESTION_PROMPT
+from internal.graph.resume.resume_prompt import EXTRACT_INFO_PROMPT
 from langgraph.graph import StateGraph, END
 from internal.llm.loader import getChatHistory
 from langchain_core.runnables import RunnableWithMessageHistory
@@ -11,6 +11,7 @@ from internal.graph.resume.resume_state import ResumeState
 from internal.domain.models.interview import RequirementsRequest
 import fitz
 from io import BytesIO
+import json
 
 class ResumeGraph:
     def __init__(self, llm):
@@ -23,8 +24,8 @@ class ResumeGraph:
         wf.add_node(ResumeNode.ROUTER.value, self._router_node)
         wf.add_node(ResumeNode.PARSE_RESUME.value, self._parse_resume_node)
         wf.add_node(ResumeNode.EXTRACT_INFO.value, self._extract_info_node)
-        wf.add_node(ResumeNode.ASK_JOB_DETAIL.value, self._ask_job_detail_node)
-        wf.add_node(ResumeNode.ENRICH_CONTEXT.value, self._enrich_context_node)
+        wf.add_node(ResumeNode.TIMEOUT_RETRY.value, self._timeout_retry_node)
+        wf.add_node(ResumeNode.INCOMPLETE.value, self._incomplete_node)
         wf.add_node(ResumeNode.ERROR_HANDLER.value, self._error_handler_node)
 
         wf.set_entry_point(ResumeNode.ROUTER.value)
@@ -35,8 +36,8 @@ class ResumeGraph:
             {
                 ResumeNode.PARSE_RESUME.value: ResumeNode.PARSE_RESUME.value,
                 ResumeNode.EXTRACT_INFO.value: ResumeNode.EXTRACT_INFO.value,
-                ResumeNode.ASK_JOB_DETAIL.value: ResumeNode.ASK_JOB_DETAIL.value,
-                ResumeNode.ENRICH_CONTEXT.value: ResumeNode.ENRICH_CONTEXT.value,
+                ResumeNode.TIMEOUT_RETRY.value: ResumeNode.EXTRACT_INFO.value,
+                ResumeNode.INCOMPLETE.value: ResumeNode.INCOMPLETE.value,
                 ResumeNode.ERROR_HANDLER.value: ResumeNode.ERROR_HANDLER.value,
             },
         )
@@ -44,8 +45,9 @@ class ResumeGraph:
         for node in [
             ResumeNode.PARSE_RESUME.value,
             ResumeNode.EXTRACT_INFO.value,
-            ResumeNode.ASK_JOB_DETAIL.value,
-            ResumeNode.ENRICH_CONTEXT.value,
+            ResumeNode.TIMEOUT_RETRY.value,
+            ResumeNode.INCOMPLETE.value,
+            ResumeNode.ERROR_HANDLER.value,
         ]:
             wf.add_conditional_edges(
                 node,
@@ -56,7 +58,9 @@ class ResumeGraph:
                 },
             )
 
+        wf.add_edge(ResumeNode.INCOMPLETE.value, END)
         wf.add_edge(ResumeNode.ERROR_HANDLER.value, END)
+        wf.add_edge(ResumeNode.TIMEOUT_RETRY.value, END)
         return wf.compile()
 
     def _router_node(self, state: ResumeState) -> ResumeState:
@@ -66,8 +70,8 @@ class ResumeGraph:
         step_to_node = {
             ResumeStep.PARSE_RESUME: ResumeNode.PARSE_RESUME.value,
             ResumeStep.EXTRACT_INFO: ResumeNode.EXTRACT_INFO.value,
-            ResumeStep.ASK_JOB_DETAIL: ResumeNode.ASK_JOB_DETAIL.value,
-            ResumeStep.ENRICH_CONTEXT: ResumeNode.ENRICH_CONTEXT.value,
+            ResumeStep.TIMEOUT_RETRY: ResumeNode.TIMEOUT_RETRY.value,
+            ResumeStep.INCOMPLETE: ResumeNode.INCOMPLETE.value,
             ResumeStep.ERROR: ResumeNode.ERROR_HANDLER.value,
         }
         return step_to_node.get(state.current_step, ResumeNode.ERROR_HANDLER.value)
@@ -81,40 +85,106 @@ class ResumeGraph:
                     for page in pdf:
                         text += page.get_text()
 
+            logger.info(f"[PARSE_RESUME] Extracted {len(text)} characters from resume")
+            
             return state.model_copy(update={
                 "resume_text": text.strip(),
                 "current_step": ResumeStep.EXTRACT_INFO,
-                "should_pause": True,
             })
 
         except Exception as e:
+            logger.error(f"[PARSE_RESUME] Error parsing PDF: {e}")
             return state.model_copy(update={
                 "current_step": ResumeStep.ERROR,
-                "error_message": str(e)
+                "error_message": f"Failed to parse PDF: {str(e)}"
             })
 
     def _extract_info_node(self, state: ResumeState) -> ResumeState:
+        try:
+            runnable_struct = EXTRACT_INFO_PROMPT
+
+            data = runnable_struct.invoke(
+                {
+                    "resume_text": state.resume_text,
+                    "position": state.position,
+                    "company": state.company,
+                    "job_requirements": state.job_requirements,
+                    "work_type": state.work_type,
+                    "interview_type": state.interview_type,
+                    "language": state.language
+                },
+                config={"configurable": {"session_id": state.session_id}},
+            )
+
+            try:
+                if hasattr(data, 'content'):
+                    content = data.content
+                else:
+                    content = data
+                
+                if isinstance(content, str):
+                    try:
+                        prompt_info = json.loads(content)
+                        logger.info(f"[EXTRACT_INFO] Successfully parsed JSON response")
+                    except json.JSONDecodeError:
+                        logger.warning(f"[EXTRACT_INFO] Response is not valid JSON, storing as string")
+                        prompt_info = {"raw_response": content}
+                else:
+                    prompt_info = content
+                
+                return state.model_copy(update={
+                    "current_step": ResumeStep.INCOMPLETE,
+                    "should_pause": False,
+                    "prompt_info": prompt_info,
+                    "resume_text": state.resume_text,
+                })
+                
+            except Exception as parse_error:
+                logger.error(f"[EXTRACT_INFO] Error parsing LLM response: {parse_error}")
+                return state.model_copy(update={
+                    "current_step": ResumeStep.ERROR,
+                    "error_message": f"Failed to parse LLM response: {str(parse_error)}",
+                    "should_pause": True,
+                })
+                
+        except Exception as e:
+            logger.error(f"[EXTRACT_INFO] Error in extract_info_node: {e}")
+            return state.model_copy(update={
+                "current_step": ResumeStep.ERROR,
+                "error_message": f"Failed to extract info: {str(e)}",
+                "should_pause": True,
+            })
+
+    def _timeout_retry_node(self, state: ResumeState) -> ResumeState:
+        logger.info(f"[TIMEOUT_RETRY] Handling timeout for session {state.session_id}")
+        
         return state.model_copy(update={
             "current_step": ResumeStep.EXTRACT_INFO,
             "should_pause": False,
         })
 
-    def _ask_job_detail_node(self, state: ResumeState) -> ResumeState:
-        return state.model_copy(update={
-            "current_step": ResumeStep.ASK_JOB_DETAIL,
-            "should_pause": False,
-        })
-
-    def _enrich_context_node(self, state: ResumeState) -> ResumeState:
-        return state.model_copy(update={
-            "current_step": ResumeStep.ENRICH_CONTEXT,
-            "should_pause": False,
-        })
+    def _incomplete_node(self, state: ResumeState) -> ResumeState:
+        logger.info(f"[INCOMPLETE] Processing incomplete for session {state.session_id}")
+        
+        if state.parsed_info:
+            logger.info(f"[INCOMPLETE] Resume processing completed successfully")
+            return state.model_copy(update={
+                "current_step": ResumeStep.INCOMPLETE,
+                "should_pause": True,
+            })
+        else:
+            logger.warning(f"[INCOMPLETE] No parsed info found, moving to error")
+            return state.model_copy(update={
+                "current_step": ResumeStep.ERROR,
+                "error_message": "Processing incomplete - no parsed information available",
+                "should_pause": True,
+            })
 
     def _error_handler_node(self, state: ResumeState) -> ResumeState:
-        logger.error(f"[ERROR_HANDLER]: {state.error_message}")
+        logger.error(f"[ERROR_HANDLER] Handling error for session {state.session_id}: {state.error_message}")
         return state.model_copy(update={
             "current_step": ResumeStep.ERROR,
+            "should_pause": True,
         })
     
     def _after_node_continue_or_pause(self, state: ResumeState) -> str:
@@ -152,7 +222,6 @@ class ResumeGraph:
                 sid = session_id
 
             return getChatHistory(sid)
-
 
         chain = RunnableWithMessageHistory(
             runnable=runnable_both,
@@ -199,6 +268,9 @@ class ResumeGraph:
                     current_step=ResumeStep.PARSE_RESUME,
                 )
 
+            logger.info(f"[INVOKE] Starting resume processing for session {request.session_id}")
+            logger.info(f"[INVOKE] Job: {request.position} at {request.company}")
+
             result = self.graph.invoke(
                 initial_state,
                 config={"configurable": {
@@ -206,12 +278,14 @@ class ResumeGraph:
                     "thread_id": request.session_id,
                 }}
             )
+            
             normalized = ResumeState(**result) if isinstance(result, dict) else result
+            logger.info(f"[INVOKE] Processing completed with step: {normalized.current_step}")
 
             save_resume_state(request.session_id, normalized)
 
             if normalized.current_step in (
-                ResumeStep.ENRICH_CONTEXT,
+                ResumeStep.INCOMPLETE,
                 ResumeStep.ERROR,
             ):
                 clear_state(request.session_id)

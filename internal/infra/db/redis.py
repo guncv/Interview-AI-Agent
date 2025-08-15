@@ -31,7 +31,15 @@ def load_interview_state(session_id: str) -> Optional[InterviewState]:
     return InterviewState(**json.loads(raw))
 
 def save_resume_state(session_id: str, state: ResumeState) -> None:
-    r.setex(_state_key(session_id), STATE_TTL_SECONDS, json.dumps(state.dict(), ensure_ascii=False))
+    def resume_converter(obj):
+        if isinstance(obj, Enum):
+            return obj.value
+        if isinstance(obj, bytes):
+            return obj.decode('utf-8', errors='ignore')
+        raise TypeError(f'Object of type {obj.__class__.__name__} is not JSON serializable')
+    
+    state_dict = state.model_dump()
+    r.setex(_state_key(session_id), STATE_TTL_SECONDS, json.dumps(state_dict, ensure_ascii=False, default=resume_converter))
 
 def load_resume_state(session_id: str) -> Optional[ResumeState]:
     raw = r.get(_state_key(session_id))
