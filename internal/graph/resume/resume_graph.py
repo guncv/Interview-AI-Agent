@@ -4,10 +4,12 @@ from internal.llm.prompt_builder import ASK_QUESTION_PROMPT
 from langgraph.graph import StateGraph, END
 from internal.llm.loader import getChatHistory
 from langchain_core.runnables import RunnableWithMessageHistory
-from internal.infra.db.redis import save_state, load_state, clear_state, acquire_lock, release_lock
+from internal.infra.db.redis import save_resume_state, load_resume_state, clear_state, acquire_lock, release_lock
 from internal.llm.state_store import clearMemory
 from langchain_core.runnables import RunnableLambda
 from internal.graph.resume.resume_state import ResumeState
+from internal.domain.models.interview import RequirementsRequest
+import fitz
 from io import BytesIO
 
 class ResumeGraph:
@@ -71,27 +73,40 @@ class ResumeGraph:
         return step_to_node.get(state.current_step, ResumeNode.ERROR_HANDLER.value)
 
     def _parse_resume_node(self, state: ResumeState) -> ResumeState:
-        return state.model_copy(update={
-            "current_step": ResumeStep.PARSE_RESUME,
-        })
+        try:
+            text = ""
+            file_input = BytesIO(state.file_input)
+            if file_input:
+                with fitz.open(stream=file_input, filetype="pdf") as pdf:
+                    for page in pdf:
+                        text += page.get_text()
+
+            return state.model_copy(update={
+                "resume_text": text.strip(),
+                "current_step": ResumeStep.EXTRACT_INFO,
+                "should_pause": True,
+            })
+
+        except Exception as e:
+            return state.model_copy(update={
+                "current_step": ResumeStep.ERROR,
+                "error_message": str(e)
+            })
 
     def _extract_info_node(self, state: ResumeState) -> ResumeState:
         return state.model_copy(update={
-            "message": state.message or "",
             "current_step": ResumeStep.EXTRACT_INFO,
             "should_pause": False,
         })
 
     def _ask_job_detail_node(self, state: ResumeState) -> ResumeState:
         return state.model_copy(update={
-            "message": state.message or "",
             "current_step": ResumeStep.ASK_JOB_DETAIL,
             "should_pause": False,
         })
 
     def _enrich_context_node(self, state: ResumeState) -> ResumeState:
         return state.model_copy(update={
-            "message": state.message or "",
             "current_step": ResumeStep.ENRICH_CONTEXT,
             "should_pause": False,
         })
@@ -99,8 +114,6 @@ class ResumeGraph:
     def _error_handler_node(self, state: ResumeState) -> ResumeState:
         logger.error(f"[ERROR_HANDLER]: {state.error_message}")
         return state.model_copy(update={
-            "message": "ขออภัยครับ เกิดข้อผิดพลาดในการประมวลผล กรุณาลองใหม่อีกครั้ง",
-            "match_score": 0,
             "current_step": ResumeStep.ERROR,
         })
     
@@ -159,56 +172,64 @@ class ResumeGraph:
 
         return schema(**data["raw"])
 
-    def invoke(self, session_id: str, file_input: BytesIO) -> ResumeState:
-        locked = acquire_lock(session_id)
+    def invoke(self, request: RequirementsRequest) -> ResumeState:
+        locked = acquire_lock(request.session_id)
         try:
-            prev_state = load_state(session_id)
+            prev_state = load_resume_state(request.session_id)
 
             if prev_state:
-                initial_state = prev_state.model_copy(update={"file_input": file_input})
+                initial_state = prev_state.model_copy(update={
+                    "file_input": request.resume_file,
+                    "job_requirements": request.job_requirements,
+                    "position": request.position,
+                    "company": request.company,
+                    "work_type": request.work_type,
+                    "interview_type": request.interview_type,
+                })
             else:
                 initial_state = ResumeState(
-                    session_id=session_id,
-                    file_input=file_input,
+                    session_id=request.session_id,
+                    file_input=request.resume_file,
+                    job_requirements=request.job_requirements,
+                    position=request.position,
+                    company=request.company,
+                    work_type=request.work_type,
+                    interview_type=request.interview_type,
+                    language=request.language,
                     current_step=ResumeStep.PARSE_RESUME,
-                    message="",
-                    match_score=0,
                 )
 
             result = self.graph.invoke(
                 initial_state,
                 config={"configurable": {
-                    "session_id": session_id,
-                    "thread_id": session_id,
+                    "session_id": request.session_id,
+                    "thread_id": request.session_id,
                 }}
             )
             normalized = ResumeState(**result) if isinstance(result, dict) else result
 
-            logger.info(f"[ResumeGraph.invoke]: step={normalized.current_step}, message={normalized.message!r}")
-
-            save_state(session_id, normalized)
+            save_resume_state(request.session_id, normalized)
 
             if normalized.current_step in (
                 ResumeStep.ENRICH_CONTEXT,
                 ResumeStep.ERROR,
             ):
-                clear_state(session_id)
-                clearMemory(session_id)
+                clear_state(request.session_id)
+                clearMemory(request.session_id)
 
             return normalized
 
         except Exception as e:
             logger.exception("[ResumeGraph.invoke] exception")
             err = ResumeState(
-                session_id=session_id,
-                file_input=file_input,
+                session_id=request.session_id,
+                file_input=request.resume_file,
                 current_step=ResumeStep.ERROR,
-                message="ขออภัยครับ เกิดข้อผิดพลาดในการประมวลผล กรุณาลองใหม่อีกครั้ง",
                 match_score=0,
                 error_message=str(e),
             )
-            save_state(session_id, err)
+            save_resume_state(request.session_id, err)
             return err
         finally:
             if locked:
-                release_lock(session_id)
+                release_lock(request.session_id)

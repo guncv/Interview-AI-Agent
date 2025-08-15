@@ -5,7 +5,7 @@ from internal.llm.prompt_builder import ASK_QUESTION_PROMPT
 from langgraph.graph import StateGraph, END
 from internal.llm.loader import getChatHistory
 from langchain_core.runnables import RunnableWithMessageHistory
-from internal.infra.db.redis import save_state, load_state, clear_state, acquire_lock, release_lock
+from internal.infra.db.redis import save_interview_state, load_interview_state, clear_state, acquire_lock, release_lock
 from internal.llm.state_store import clearMemory
 from langchain_core.runnables import RunnableLambda
 
@@ -172,7 +172,7 @@ class InterviewGraph:
     def invoke(self, session_id: str, user_input: str) -> InterviewState:
         locked = acquire_lock(session_id)
         try:
-            prev_state = load_state(session_id)
+            prev_state = load_interview_state(session_id)
 
             if prev_state:
                 initial_state = prev_state.model_copy(update={"user_input": user_input})
@@ -196,7 +196,7 @@ class InterviewGraph:
 
             logger.info(f"[InterviewGraph.invoke]: step={normalized.current_step}, message={normalized.message!r}")
 
-            save_state(session_id, normalized)
+            save_interview_state(session_id, normalized)
 
             if normalized.current_step in (
                 InterviewStep.END_INTERVIEW,
@@ -217,7 +217,7 @@ class InterviewGraph:
                 match_score=0,
                 error_message=str(e),
             )
-            save_state(session_id, err)
+            save_interview_state(session_id, err)
             return err
         finally:
             if locked:
