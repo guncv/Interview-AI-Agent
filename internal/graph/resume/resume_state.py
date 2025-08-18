@@ -15,6 +15,7 @@ class ResumeState(BaseModel):
 
     resume_text: Optional[str] = None
     prompt_info: Optional['PromptInfo'] = None
+    summary_text: Optional[str] = None
     error_message: Optional[str] = None
     should_pause: Optional[bool] = False
     match_score: Optional[int] = 0

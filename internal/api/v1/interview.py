@@ -5,7 +5,7 @@ from internal.infra.log.logger import logger
 from io import BytesIO
 from internal.service.interview_service import InterviewService
 from internal.domain.models.interview import InterviewRequest
-from internal.domain.models.interview import RequirementsRequest, RequirementsResponse
+from internal.domain.models.interview import RequirementsRequest
 
 router = APIRouter()
 

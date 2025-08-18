@@ -1,4 +1,4 @@
-from internal.domain.models.interview import HealthCheckResponse, InterviewRequest, RequirementsRequest, RequirementsResponse
+from internal.domain.models.interview import HealthCheckResponse, InterviewRequest, RequirementsRequest, ParedResumeResp
 from internal.utils.exception import InterviewSimulationException
 from internal.domain.exception import InterviewSimulationErrorCodes
 from internal.infra.log.logger import logger
@@ -27,6 +27,8 @@ class InterviewService:
         logger.info(f"[Interview Service Called: ]")
         try:
             resp = self.interview_graph.invoke(request.session_id, request.user_input)
+        
+            
             return resp
         except (InterviewSimulationException, Exception) as e:
             if type(e) != InterviewSimulationException:
@@ -39,8 +41,10 @@ class InterviewService:
         try:
             resp = self.resume_graph.invoke(request)
         
-            result = RequirementsResponse(
-                prompt_info=resp.prompt_info
+            result = ParedResumeResp(
+                parsed_json=resp.prompt_info,
+                raw_text=resp.resume_text,
+                summary_text=resp.summary_text
             )
 
             return result
