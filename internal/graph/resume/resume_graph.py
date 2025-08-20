@@ -102,28 +102,12 @@ class ResumeGraph:
     def _extract_info_node(self, state: ResumeState) -> ResumeState:
         try:
             prompt_info = self._invoke_node(EXTRACT_INFO_PROMPT, PromptInfo, state.session_id, state.resume_text)
-            
-            # Generate a simple summary from the extracted info
-            summary_parts = []
-            if prompt_info.full_name:
-                summary_parts.append(f"Name: {prompt_info.full_name}")
-            if prompt_info.position:
-                summary_parts.append(f"Position: {prompt_info.position}")
-            if prompt_info.company:
-                summary_parts.append(f"Company: {prompt_info.company}")
-            if prompt_info.experience:
-                summary_parts.append(f"Experience: {len(prompt_info.experience)} positions")
-            if prompt_info.skills:
-                summary_parts.append(f"Skills: {len(prompt_info.skills)} skills")
-            
-            summary_text = " | ".join(summary_parts) if summary_parts else "Resume processed successfully"
                 
             return state.model_copy(update={
                 "current_step": ResumeStep.INCOMPLETE,
                 "should_pause": False,
                 "prompt_info": prompt_info,
                 "resume_text": state.resume_text,
-                "summary_text": summary_text,
             })
                 
         except Exception as e:
