@@ -12,6 +12,8 @@ services:
       - REDIS_URL=redis://redis:6379/0
     env_file:
       - .env.dev
+    networks:
+      - interview-network
 
   redis:
     image: redis:7-alpine
@@ -26,6 +28,13 @@ services:
       timeout: 3s
       retries: 10
     restart: unless-stopped
+    networks:
+      - interview-network
 
 volumes:
   redis-data:
+
+networks:
+  interview-network:
+    external: true
+

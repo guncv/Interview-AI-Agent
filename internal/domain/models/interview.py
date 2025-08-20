@@ -1,6 +1,7 @@
 from pydantic import BaseModel
 from io import BytesIO
 from typing import Any, Optional
+from internal.graph.resume.resume_state import PromptInfo
 
 class HealthCheckResponse(BaseModel):
     message: str
@@ -23,4 +24,4 @@ class RequirementsRequest(BaseModel):
     language: str
     
 class RequirementsResponse(BaseModel):
-    prompt_info: Any
+    parsed_json: PromptInfo
