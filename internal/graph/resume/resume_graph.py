@@ -2,8 +2,6 @@ from internal.infra.log.logger import logger
 from internal.graph.resume.resume_step import ResumeStep, ResumeNode
 from internal.graph.resume.resume_prompt import EXTRACT_INFO_PROMPT
 from langgraph.graph import StateGraph, END
-from internal.llm.loader import getChatHistory
-from langchain_core.runnables import RunnableWithMessageHistory
 from internal.infra.db.redis import save_resume_state, load_resume_state, clear_state, acquire_lock, release_lock
 from internal.llm.state_store import clearMemory
 from langchain_core.runnables import RunnableLambda
@@ -11,7 +9,6 @@ from internal.graph.resume.resume_state import ResumeState, PromptInfo
 from internal.domain.models.interview import RequirementsRequest
 import fitz
 from io import BytesIO
-import json
 
 class ResumeGraph:
     def __init__(self, llm):

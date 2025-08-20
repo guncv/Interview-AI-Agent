@@ -5,7 +5,6 @@ from internal.infra.log.logger import logger
 from internal.graph.interview.interview_graph import InterviewGraph
 from internal.llm.loader import llm
 from internal.graph.resume.resume_graph import ResumeGraph
-from io import BytesIO
 
 class InterviewService:
     def __init__(self):
@@ -40,7 +39,7 @@ class InterviewService:
             resp = self.resume_graph.invoke(request)
         
             result = RequirementsResponse(
-                prompt_info=resp.prompt_info
+                parsed_json=resp.prompt_info
             )
 
             return result
