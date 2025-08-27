@@ -17,17 +17,13 @@ async def get_websocket_params(
     }
 
 @router.websocket("/connect")
-async def websocket_endpoint(
-    websocket: WebSocket,
-    params: dict = Depends(get_websocket_params)
-):
+async def websocket_endpoint(websocket: WebSocket, params: dict = Depends(get_websocket_params)):
+    logger.info(f"[Websocket: connect] Starting connection with params: {params}")
+    logger.info(f"[Websocket: connect] WebSocket object: {websocket}")
+
     try:
-        logger.info(f"[Websocket: connect] {params}")
-        user_id = params["user_id"]
-        session_id = params["session_id"]
-        
-        await manager.connect(websocket, user_id, session_id)
-            
+        client = await manager.connect(websocket, params["user_id"], params["session_id"])
+        await manager.serve(client)
     except Exception as e:
         logger.error(f"Failed to establish WebSocket connection: {e}")
         try:
