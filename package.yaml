@@ -42,3 +42,4 @@ dependencies:
       - sentence-transformers
       - pymupdf
       - websockets
+      - PyJWT

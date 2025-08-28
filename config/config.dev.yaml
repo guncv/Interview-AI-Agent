@@ -95,3 +95,6 @@ pinecone:
 logging:
   level: "DEBUG"
   format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+session:
+  query_param_secret_key: "${QUERY_PARAM_SECRET_KEY}"

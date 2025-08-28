@@ -1,25 +1,31 @@
 from fastapi import APIRouter, WebSocket, Depends, HTTPException, Query
 from internal.infra.websocket.server import ws_server
 from internal.infra.log.logger import logger
+from internal.utils.jwt_token import JWTToken
 
 router = APIRouter()
+jwt_token = JWTToken()
 
 async def get_websocket_params(
-    user_id: str = Query(..., description="User ID for authentication"),
-    session_id: str = Query(..., description="Session ID for the interview"),
+    token: str = Query(..., description="Token for encrypt session and user"),
 ) -> dict:
-    if not user_id or not session_id:
+    logger.info(f"[Websocket: get_websocket_params] Token: {token}")
+    if not token:
+        logger.error(f"[Websocket: get_websocket_params] Missing required parameters")
         raise HTTPException(status_code=400, detail="Missing required parameters")
-    
+
+    logger.info(f"[Websocket: get_websocket_params] Verifying token")
+    payload = jwt_token.verify_token(token)
+    logger.info(f"[Websocket: get_websocket_params] Payload: {payload}")
+
     return {
-        "user_id": user_id,
-        "session_id": session_id,
+        "user_id": payload["user_id"],
+        "session_id": payload["session_id"],
     }
 
 @router.websocket("/connect")
 async def websocket_endpoint(websocket: WebSocket, params: dict = Depends(get_websocket_params)):
     logger.info(f"[Websocket: connect] Starting connection with params: {params}")
-    logger.info(f"[Websocket: connect] WebSocket object: {websocket}")
 
     try:
         client = await ws_server.connect(websocket, params["user_id"], params["session_id"])

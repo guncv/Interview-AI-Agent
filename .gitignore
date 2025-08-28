@@ -54,7 +54,7 @@ coverage.xml
 docs/_build/
 
 # env
-*.env
+*.env.*
 
 # local vscode/extension setting
 .vscode

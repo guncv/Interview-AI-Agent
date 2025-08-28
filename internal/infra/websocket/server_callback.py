@@ -1,12 +1,15 @@
-from internal.infra.websocket.server import WebSocketClient
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from internal.infra.websocket.server import WebSocketClient
 
 class WebSocketServerCallback:
-    def on_message(self, client: WebSocketClient, message: dict):
+    def on_message(self, client: 'WebSocketClient', message: dict):
         pass
 
-    def on_disconnect(self, client: WebSocketClient):
+    def on_disconnect(self, client: 'WebSocketClient'):
         pass
 
-    def on_error(self, client: WebSocketClient, error: Exception):
+    def on_error(self, client: 'WebSocketClient', error: Exception):
         pass
     
