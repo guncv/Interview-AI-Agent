@@ -1,15 +1,23 @@
 from typing import TYPE_CHECKING
+from internal.infra.log.logger import logger
 
 if TYPE_CHECKING:
     from internal.infra.websocket.server import WebSocketClient
 
 class WebSocketServerCallback:
-    def on_message(self, client: 'WebSocketClient', message: dict):
+    async def handle_segment_start(self, client: 'WebSocketClient', message: dict):
+        logger.info(f"[Websocket: handle segment start]: {client.user_id} {client.session_id}, {message}")
         pass
 
-    def on_disconnect(self, client: 'WebSocketClient'):
+    async def handle_audio_chunk(self, client: 'WebSocketClient', audio_message: dict):
+
+        logger.info(f"[Websocket: handle audio chunk]:")
+        # TODO: Implement audio processing logic here
+        # You can access the raw audio data via audio_message['audio_data']
         pass
 
-    def on_error(self, client: 'WebSocketClient', error: Exception):
+    async def handle_segment_end(self, client: 'WebSocketClient', message: dict):
+        logger.info(f"[Websocket: handle segment end]: {client.user_id} {client.session_id}, {message}")
         pass
+
     
