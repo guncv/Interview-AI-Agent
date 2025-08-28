@@ -2,6 +2,9 @@ import os
 import yaml
 import re
 from typing import Dict, Any
+from dotenv import load_dotenv
+
+load_dotenv('.env.dev')
 
 
 class ConfigLoader:
