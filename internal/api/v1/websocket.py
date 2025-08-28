@@ -1,5 +1,5 @@
 from fastapi import APIRouter, WebSocket, Depends, HTTPException, Query
-from internal.infra.websocket.websocket import manager
+from internal.infra.websocket.server import ws_server
 from internal.infra.log.logger import logger
 
 router = APIRouter()
@@ -22,8 +22,8 @@ async def websocket_endpoint(websocket: WebSocket, params: dict = Depends(get_we
     logger.info(f"[Websocket: connect] WebSocket object: {websocket}")
 
     try:
-        client = await manager.connect(websocket, params["user_id"], params["session_id"])
-        await manager.serve(client)
+        client = await ws_server.connect(websocket, params["user_id"], params["session_id"])
+        await ws_server.serve(client)
     except Exception as e:
         logger.error(f"Failed to establish WebSocket connection: {e}")
         try:

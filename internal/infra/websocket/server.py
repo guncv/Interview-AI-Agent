@@ -67,14 +67,10 @@ class ErrorMessage:
     code: str = ""
     message: str = ""
 
-
-class ConnectionManager:
+class WebSocketServer:
     def __init__(self):
         self.active_connections: Dict[str, WebSocketClient] = {}
         self.user_sessions: Dict[str, Set[str]] = {}
-        self.ping_interval: float = 30.0
-        self.pong_timeout: float = 10.0
-        self.read_timeout: float = 60.0
 
     async def connect(self, websocket: WebSocket, user_id: str, session_id: str) -> WebSocketClient:
         logger.info(f"[Websocket: connect] {user_id} {session_id}")
@@ -82,28 +78,54 @@ class ConnectionManager:
             await self.disconnect(self.active_connections[session_id])
         await websocket.accept()
         
-        logger.info(f"[Websocket: connect] {user_id} {session_id}")
         client = WebSocketClient(websocket, user_id, session_id)
         self.active_connections[session_id] = client
         self.user_sessions.setdefault(user_id, set()).add(session_id)
         
-        logger.info(f"[Websocket: connect] {user_id} {session_id}")
+        logger.info(f"[Websocket: connect successful] {user_id} {session_id}")
         await self._send_json(client, {"type": WebSocketMessageType.CONNECTION_ESTABLISHED, "session_id": session_id})
-        logger.info(f"[Websocket: connect] Client {user_id} connected to session {session_id}. Total: {len(self.active_connections)}")
         return client
 
     async def serve(self, client: WebSocketClient):
         logger.info(f"[Websocket: serve] {client.user_id} {client.session_id}")
-        ping_task = asyncio.create_task(self._ping_loop(client))
         read_task = asyncio.create_task(self._read_loop(client))
         
         try:
-            await asyncio.wait({ping_task, read_task}, return_when=asyncio.FIRST_COMPLETED)
+            await asyncio.wait({read_task}, return_when=asyncio.FIRST_COMPLETED)
+            
+        except asyncio.CancelledError:
+            logger.info(f"[Websocket: serve] {client.user_id} {client.session_id}: cancelled")
+            await self.disconnect(client)
+            
+        except Exception as e:
+            logger.error(f"[Websocket: serve] {client.user_id} {client.session_id}: {e}")
+            await self.disconnect(client)
             
         finally:
-            for t in (ping_task, read_task):
+            for t in (read_task):
                 if not t.done():
                     t.cancel()
+            await self.disconnect(client)
+
+    async def _read_loop(self, client: WebSocketClient):
+        logger.info(f"[Websocket: read_loop] {client.user_id} {client.session_id}, {client.is_connected}")
+        try:
+            while client.is_connected:
+                message = await client.websocket.receive()
+                logger.info(f"[Websocket: read loop get message] {message}")
+                
+                if message["type"] == "websocket.disconnect":
+                    break
+                
+                await self._handle_message(client, message)
+                    
+        except WebSocketDisconnect:
+            logger.info(f"WS disconnect from {client.user_id}")
+            
+        except Exception as e:
+            logger.error(f"Read error from {client.user_id}: {e}")
+            
+        finally:
             await self.disconnect(client)
 
     async def disconnect(self, client: WebSocketClient):
@@ -126,29 +148,9 @@ class ConnectionManager:
 
         logger.info(f"Disconnected {client.user_id} from {client.session_id}")
 
-    async def _read_loop(self, client: WebSocketClient):
-        try:
-            while client.is_connected:
-                try:
-                    message = await asyncio.wait_for(client.websocket.receive(), timeout=self.read_timeout)
-                    if message["type"] == "websocket.disconnect":
-                        break
-                    await self._handle_message(client, message)
-                except asyncio.TimeoutError:
-                    if time.time() - client.last_pong_time > self.pong_timeout:
-                        logger.warning(f"Timeout from {client.user_id}")
-                        break
-                    
-        except WebSocketDisconnect:
-            logger.info(f"WS disconnect from {client.user_id}")
-            
-        except Exception as e:
-            logger.error(f"Read error from {client.user_id}: {e}")
-            
-        finally:
-            await self.disconnect(client)
 
     async def _handle_message(self, client: WebSocketClient, message: dict):
+        logger.info(f"[Websocket: handle message] {client.user_id} {client.session_id}, {message}")
         try:
             content = message.get("bytes") or message.get("text", "")
             if isinstance(content, bytes):
@@ -161,17 +163,10 @@ class ConnectionManager:
             await self._send_error(client, WebSocketErrorCode.INVALID_MESSAGE, str(e))
 
     async def _handle_text_message(self, client: WebSocketClient, content: str):
+        logger.info(f"[Websocket: handle text message] {client.user_id} {client.session_id}, {content}")
         try:
             data = json.loads(content)
             t = data.get("type")
-
-            if t == WebSocketMessageType.PONG:
-                client.last_pong_time = time.time()
-                return
-
-            if t == WebSocketMessageType.PING:
-                await self._send_json(client, {"type": WebSocketMessageType.PONG, "timestamp": time.time()})
-                return
 
             match t:
                 case WebSocketMessageType.SEGMENT_START:
@@ -187,68 +182,6 @@ class ConnectionManager:
         except Exception as e:
             await self._send_error(client, WebSocketErrorCode.INVALID_MESSAGE, str(e))
 
-    async def _handle_segment_start(self, client: WebSocketClient, data: dict):
-        try:
-            msg = SegmentStartMessage(**data)
-            if msg.session_id != client.session_id:
-                await self._send_error(client, WebSocketErrorCode.SESSION_ID_MISMATCH, "Session mismatch")
-                return
-            client.current_segment_id = msg.segment_id
-            
-        except Exception as e:
-            await self._send_error(client, WebSocketErrorCode.INVALID_SEGMENT_START, str(e))
-
-    async def _handle_segment_end(self, client: WebSocketClient, data: dict):
-        try:
-            msg = SegmentEndMessage(**data)
-            if msg.session_id != client.session_id:
-                await self._send_error(client, WebSocketErrorCode.SESSION_ID_MISMATCH, "Session mismatch")
-                return
-            if msg.segment_id != client.current_segment_id:
-                await self._send_error(client, WebSocketErrorCode.SEGMENT_ID_MISMATCH, "Segment mismatch")
-                return
-            client.current_segment_id = None
-            
-        except Exception as e:
-            await self._send_error(client, WebSocketErrorCode.INVALID_SEGMENT_END, str(e))
-
-    async def _handle_audio_message(self, client: WebSocketClient, audio_data: bytes):
-        try:
-            if len(audio_data) < 4:
-                return
-            header_len = int.from_bytes(audio_data[:4], 'big')
-            if 4 + header_len > len(audio_data):
-                return
-            header_bytes = audio_data[4:4 + header_len]
-            header = AudioChunkHeader(**json.loads(header_bytes.decode()))
-            if header.session_id != client.session_id:
-                await self._send_error(client, WebSocketErrorCode.SESSION_ID_MISMATCH, "Session mismatch")
-                return
-            if header.segment_id != client.current_segment_id:
-                await self._send_error(client, WebSocketErrorCode.SEGMENT_ID_MISMATCH, "Segment mismatch")
-                return
-            
-        except Exception as e:
-            await self._send_error(client, WebSocketErrorCode.INVALID_MESSAGE, str(e))
-
-    async def _ping_loop(self, client: WebSocketClient):
-        try:
-            while client.is_connected:
-                await asyncio.sleep(self.ping_interval)
-                if time.time() - client.last_pong_time > self.pong_timeout:
-                    break
-                await client.websocket.send_text(json.dumps({
-                    "type": WebSocketMessageType.PING,
-                    "timestamp": time.time()
-                }))
-                
-        except Exception as e:
-            logger.error(f"Ping error for {client.user_id}: {e}")
-            
-        finally:
-            if client.is_connected:
-                await self.disconnect(client)
-
     async def _send_json(self, client: WebSocketClient, data: dict):
         try:
             if client.is_connected:
@@ -262,4 +195,4 @@ class ConnectionManager:
         await self._send_json(client, ErrorMessage(code=code, message=message).__dict__)
 
 
-manager = ConnectionManager()
+ws_server = WebSocketServer()
