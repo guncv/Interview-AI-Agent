@@ -7,26 +7,9 @@ from dataclasses import dataclass, field
 from enum import Enum
 from fastapi import WebSocket, WebSocketDisconnect
 from internal.infra.log.logger import logger
-
-class WebSocketMessageType(str, Enum):
-    CONNECTION_ESTABLISHED = "connection_established"
-    SEGMENT_START = "segment_start"
-    SEGMENT_END = "segment_end"
-    ERROR = "error"
-    ECHO = "echo"
-    PING = "ping"
-    PONG = "pong"
-
-
-class WebSocketErrorCode(str, Enum):
-    INVALID_TOKEN = "invalid_token"
-    SESSION_NOT_FOUND = "session_not_found"
-    INVALID_MESSAGE = "invalid_message"
-    INVALID_SEGMENT_START = "invalid_segment_start"
-    INVALID_SEGMENT_END = "invalid_segment_end"
-    SESSION_ID_MISMATCH = "session_id_mismatch"
-    SEGMENT_ID_MISMATCH = "segment_id_mismatch"
-
+from internal.domain.enum import WebSocketMessageType, WebSocketErrorCode
+from internal.domain.models.websocket import ErrorMessage
+from internal.infra.websocket.server_callback import WebSocketServerCallback
 
 @dataclass
 class WebSocketClient:
@@ -38,39 +21,11 @@ class WebSocketClient:
     is_connected: bool = True
     current_segment_id: Optional[str] = None
 
-
-@dataclass
-class AudioChunkHeader:
-    type: str
-    session_id: str
-    segment_id: str
-
-
-@dataclass
-class SegmentStartMessage:
-    type: str
-    session_id: str
-    segment_id: str
-
-
-@dataclass
-class SegmentEndMessage:
-    type: str
-    session_id: str
-    segment_id: str
-    timestamp: Optional[float] = None
-
-
-@dataclass
-class ErrorMessage:
-    type: str = "error"
-    code: str = ""
-    message: str = ""
-
 class WebSocketServer:
     def __init__(self):
         self.active_connections: Dict[str, WebSocketClient] = {}
         self.user_sessions: Dict[str, Set[str]] = {}
+        self.callbacks: WebSocketServerCallback = {}
 
     async def connect(self, websocket: WebSocket, user_id: str, session_id: str) -> WebSocketClient:
         logger.info(f"[Websocket: connect] {user_id} {session_id}")
