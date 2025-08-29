@@ -2,7 +2,7 @@ from internal.infra.log.logger import logger
 from internal.graph.resume.resume_step import ResumeStep, ResumeNode
 from internal.graph.resume.resume_prompt import EXTRACT_INFO_PROMPT
 from langgraph.graph import StateGraph, END
-from internal.infra.db.redis import save_resume_state, load_resume_state, clear_state, acquire_lock, release_lock
+from internal.infra.db.redis import redis_client
 from internal.llm.state_store import clearMemory
 from langchain_core.runnables import RunnableLambda
 from internal.graph.resume.resume_state import ResumeState, PromptInfo
@@ -171,9 +171,9 @@ class ResumeGraph:
         return schema(**data["raw"])
 
     def invoke(self, request: RequirementsRequest) -> ResumeState:
-        locked = acquire_lock(request.session_id)
+        locked = redis_client.acquire_lock(request.session_id)
         try:
-            prev_state = load_resume_state(request.session_id)
+            prev_state = redis_client.load_resume_state(request.session_id)
 
             if prev_state:
                 initial_state = prev_state.model_copy(update={
@@ -211,13 +211,13 @@ class ResumeGraph:
             normalized = ResumeState(**result) if isinstance(result, dict) else result
             logger.info(f"[INVOKE] Processing completed with step: {normalized.current_step}")
 
-            save_resume_state(request.session_id, normalized)
+            redis_client.save_resume_state(request.session_id, normalized)
 
             if normalized.current_step in (
                 ResumeStep.INCOMPLETE,
                 ResumeStep.ERROR,
             ):
-                clear_state(request.session_id)
+                redis_client.clear_state(request.session_id)
                 clearMemory(request.session_id)
 
             return normalized
@@ -231,8 +231,8 @@ class ResumeGraph:
                 match_score=0,
                 error_message=str(e),
             )
-            save_resume_state(request.session_id, err)
+            redis_client.save_resume_state(request.session_id, err)
             return err
         finally:
             if locked:
-                release_lock(request.session_id)
+                redis_client.release_lock(request.session_id)

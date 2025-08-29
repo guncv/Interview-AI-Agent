@@ -1,4 +1,4 @@
-FROM mambaorg/micromamba:bullseye-slim
+FROM mambaorg/micromamba:bookworm-slim
 
 WORKDIR /src
 
