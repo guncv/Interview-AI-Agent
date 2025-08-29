@@ -62,7 +62,6 @@ class WebSocketServer:
         try:
             while client.is_connected:
                 message = await client.websocket.receive()
-                logger.info(f"[Websocket: read loop get message] {message}")
                 
                 if message["type"] == "websocket.disconnect":
                     break
@@ -173,7 +172,7 @@ class WebSocketServer:
             await self._send_error(client, WebSocketErrorCode.INVALID_MESSAGE, str(e))
 
     async def _handle_audio_message(self, client: WebSocketClient, content: bytes):
-        logger.info(f"[Websocket: handle audio message]: {client.user_id} {client.session_id}, audio data length: {len(content)}")
+        logger.info(f"[Websocket: handle audio message]: Called")
         
         try:
             if len(content) < 4:
@@ -207,7 +206,7 @@ class WebSocketServer:
                 await self._send_error(client, WebSocketErrorCode.SESSION_ID_MISMATCH, "Session ID mismatch")
                 return
             
-            logger.info(f"[Websocket: handle audio chunk]:")
+
             req = AudioChunkMessage(
                 type=msg_type,
                 segment_id=segment_id,
