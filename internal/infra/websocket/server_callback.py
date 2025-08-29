@@ -11,7 +11,7 @@ class WebSocketServerCallback:
 
     async def handle_audio_chunk(self, client: 'WebSocketClient', audio_message: dict):
 
-        logger.info(f"[Websocket: handle audio chunk]:")
+        logger.info(f"[Websocket: handle audio chunk]: audio_message: {audio_message}")
         # TODO: Implement audio processing logic here
         # You can access the raw audio data via audio_message['audio_data']
         pass

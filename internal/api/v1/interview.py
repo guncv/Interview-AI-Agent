@@ -3,7 +3,7 @@ from internal.utils.exception import InterviewSimulationException
 from internal.domain.exception import InterviewSimulationErrorCodes
 from internal.infra.log.logger import logger
 from io import BytesIO
-from internal.service.interview_service import InterviewService
+from internal.use_cases.interview import InterviewService
 from internal.domain.models.interview import InterviewRequest
 from internal.domain.models.interview import RequirementsRequest, RequirementsResponse
 

@@ -9,6 +9,7 @@ dependencies:
   - pydantic>=2.7,<3
   - httpx
   - gunicorn
+  - google-cloud-speech
   - pip:
       - openai
       - python-dotenv

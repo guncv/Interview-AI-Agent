@@ -98,3 +98,6 @@ logging:
 
 session:
   query_param_secret_key: "${QUERY_PARAM_SECRET_KEY}"
+
+stt:
+  credentials_path: "${STT_CREDENTIALS_PATH}"

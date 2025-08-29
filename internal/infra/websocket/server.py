@@ -17,6 +17,7 @@ class WebSocketClient:
     websocket: WebSocket
     user_id: str
     session_id: str
+    language: str
     is_connected: bool = True
     current_segment_id: Optional[str] = None
 
@@ -26,13 +27,17 @@ class WebSocketServer:
         self.user_sessions: Dict[str, Set[str]] = {}
         self.callbacks: WebSocketServerCallback = WebSocketServerCallback()
 
-    async def connect(self, websocket: WebSocket, user_id: str, session_id: str) -> WebSocketClient:
-        logger.info(f"[Websocket: connect] {user_id} {session_id}")
+    async def connect(self, websocket: WebSocket, params: dict) -> WebSocketClient:
+        user_id = params["user_id"]
+        session_id = params["session_id"]
+        language = params["language"]
+        
+        logger.info(f"[Websocket: connect] {user_id} {session_id} {language}")
         if session_id in self.active_connections:
             await self.disconnect(self.active_connections[session_id])
         await websocket.accept()
         
-        client = WebSocketClient(websocket, user_id, session_id)
+        client = WebSocketClient(websocket, user_id, session_id, language=language)
         self.active_connections[session_id] = client
         self.user_sessions.setdefault(user_id, set()).add(session_id)
         
