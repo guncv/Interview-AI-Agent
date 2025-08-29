@@ -2,13 +2,12 @@ from internal.infra.log.logger import logger
 from internal.graph.resume.resume_step import ResumeStep, ResumeNode
 from internal.graph.resume.resume_prompt import EXTRACT_INFO_PROMPT
 from langgraph.graph import StateGraph, END
-from internal.infra.db.redis import redis_client
-from internal.llm.state_store import clearMemory
 from langchain_core.runnables import RunnableLambda
 from internal.graph.resume.resume_state import ResumeState, PromptInfo
 from internal.domain.models.interview import RequirementsRequest
 import fitz
 from io import BytesIO
+from internal.llm.state_store import clearMemory
 
 class ResumeGraph:
     def __init__(self, llm):
@@ -171,31 +170,18 @@ class ResumeGraph:
         return schema(**data["raw"])
 
     def invoke(self, request: RequirementsRequest) -> ResumeState:
-        locked = redis_client.acquire_lock(request.session_id)
         try:
-            prev_state = redis_client.load_resume_state(request.session_id)
-
-            if prev_state:
-                initial_state = prev_state.model_copy(update={
-                    "file_input": request.resume_file,
-                    "job_requirements": request.job_requirements,
-                    "position": request.position,
-                    "company": request.company,
-                    "work_type": request.work_type,
-                    "interview_type": request.interview_type,
-                })
-            else:
-                initial_state = ResumeState(
-                    session_id=request.session_id,
-                    file_input=request.resume_file,
-                    job_requirements=request.job_requirements,
-                    position=request.position,
-                    company=request.company,
-                    work_type=request.work_type,
-                    interview_type=request.interview_type,
-                    language=request.language,
-                    current_step=ResumeStep.PARSE_RESUME,
-                )
+            initial_state = ResumeState(
+                session_id=request.session_id,
+                file_input=request.resume_file,
+                job_requirements=request.job_requirements,
+                position=request.position,
+                company=request.company,
+                work_type=request.work_type,
+                interview_type=request.interview_type,
+                language=request.language,
+                current_step=ResumeStep.PARSE_RESUME,
+            )
 
             logger.info(f"[INVOKE] Starting resume processing for session {request.session_id}")
             logger.info(f"[INVOKE] Job: {request.position} at {request.company}")
@@ -211,16 +197,9 @@ class ResumeGraph:
             normalized = ResumeState(**result) if isinstance(result, dict) else result
             logger.info(f"[INVOKE] Processing completed with step: {normalized.current_step}")
 
-            redis_client.save_resume_state(request.session_id, normalized)
-
-            if normalized.current_step in (
-                ResumeStep.INCOMPLETE,
-                ResumeStep.ERROR,
-            ):
-                redis_client.clear_state(request.session_id)
-                clearMemory(request.session_id)
-
+            clearMemory(request.session_id)
             return normalized
+            
 
         except Exception as e:
             logger.exception("[ResumeGraph.invoke] exception")
@@ -231,8 +210,4 @@ class ResumeGraph:
                 match_score=0,
                 error_message=str(e),
             )
-            redis_client.save_resume_state(request.session_id, err)
             return err
-        finally:
-            if locked:
-                redis_client.release_lock(request.session_id)

@@ -61,3 +61,5 @@ docs/_build/
 
 */uploaded_files/*
 llm/app/uploaded_files/*
+
+gcp_secret_key.json

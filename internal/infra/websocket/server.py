@@ -9,23 +9,14 @@ from enum import Enum
 from fastapi import WebSocket, WebSocketDisconnect
 from internal.infra.log.logger import logger
 from internal.domain.enum import WebSocketMessageType, WebSocketErrorCode
-from internal.domain.models.websocket import ErrorMessage
+from internal.domain.models.websocket import ErrorMessage, AudioChunkMessage, WebSocketClient, SegmentStartMessage, SegmentEndMessage
 from internal.infra.websocket.server_callback import WebSocketServerCallback
-
-@dataclass
-class WebSocketClient:
-    websocket: WebSocket
-    user_id: str
-    session_id: str
-    language: str
-    is_connected: bool = True
-    current_segment_id: Optional[str] = None
 
 class WebSocketServer:
     def __init__(self):
         self.active_connections: Dict[str, WebSocketClient] = {}
         self.user_sessions: Dict[str, Set[str]] = {}
-        self.callbacks: WebSocketServerCallback = WebSocketServerCallback()
+        self.callbacks = WebSocketServerCallback()
 
     async def connect(self, websocket: WebSocket, params: dict) -> WebSocketClient:
         user_id = params["user_id"]
@@ -107,7 +98,6 @@ class WebSocketServer:
 
         logger.info(f"Disconnected {client.user_id} from {client.session_id}")
 
-
     async def _handle_message(self, client: WebSocketClient, message: dict):
         logger.info(f"[Websocket: handle message] {client.user_id} {client.session_id}, {message}")
         try:
@@ -121,6 +111,32 @@ class WebSocketServer:
             logger.error(f"Handle error for {client.user_id}: {e}")
             await self._send_error(client, WebSocketErrorCode.INVALID_MESSAGE, str(e))
 
+    def _validate_segment_message(self, data: dict, expected_type: str) -> tuple[bool, str]:
+        required_fields = ["type", "session_id", "segment_id"]
+
+        for field in required_fields:
+            if field not in data:
+                return False, f"Missing required field: {field}"
+
+        if data["type"] != expected_type:
+            return False, f"Invalid message type: expected {expected_type}, got {data['type']}"
+
+        return True, ""
+
+    def _create_segment_start_message(self, data: dict) -> SegmentStartMessage:
+        return SegmentStartMessage(
+            type=data["type"],
+            session_id=data["session_id"],
+            segment_id=data["segment_id"]
+        )
+
+    def _create_segment_end_message(self, data: dict) -> SegmentEndMessage:
+        return SegmentEndMessage(
+            type=data["type"],
+            session_id=data["session_id"],
+            segment_id=data["segment_id"]
+        )
+
     async def _handle_text_message(self, client: WebSocketClient, content: str):
         logger.info(f"[Websocket: handle text message]: {client.user_id} {client.session_id}, {content}")
         try:
@@ -130,9 +146,23 @@ class WebSocketServer:
 
             match t:
                 case WebSocketMessageType.SEGMENT_START:
-                    await self.callbacks.handle_segment_start(client, data)
+                    is_valid, error_msg = self._validate_segment_message(data, WebSocketMessageType.SEGMENT_START)
+                    if not is_valid:
+                        await self._send_error(client, WebSocketErrorCode.INVALID_MESSAGE, error_msg)
+                        return
+
+                    segment_start_msg = self._create_segment_start_message(data)
+                    await self.callbacks.handle_segment_start(client, segment_start_msg)
+
                 case WebSocketMessageType.SEGMENT_END:
-                    await self.callbacks.handle_segment_end(client, data)
+                    is_valid, error_msg = self._validate_segment_message(data, WebSocketMessageType.SEGMENT_END)
+                    if not is_valid:
+                        await self._send_error(client, WebSocketErrorCode.INVALID_MESSAGE, error_msg)
+                        return
+
+                    segment_end_msg = self._create_segment_end_message(data)
+                    await self.callbacks.handle_segment_end(client, segment_end_msg)
+
                 case _:
                     await self._send_json(client, {"type": WebSocketMessageType.ECHO, "content": data})
                     
@@ -177,17 +207,13 @@ class WebSocketServer:
                 await self._send_error(client, WebSocketErrorCode.SESSION_ID_MISMATCH, "Session ID mismatch")
                 return
             
-            
-            logger.info(f"[Websocket: handle audio chunk]: {client.user_id} {client.session_id}, segment: {segment_id}, audio size: {len(audio_data)}")
-            await self.callbacks.handle_audio_chunk(client, {
-                "type": msg_type,
-                "session_id": session_id,
-                "segment_id": segment_id,
-                "audio_data": audio_data,
-                "audio_length": len(audio_data)
-            })
-            
-            logger.info(f"[Websocket: audio processed] {client.user_id} {client.session_id}, segment: {segment_id}, audio size: {len(audio_data)}")
+            logger.info(f"[Websocket: handle audio chunk]:")
+            req = AudioChunkMessage(
+                type=msg_type,
+                segment_id=segment_id,
+                audio_data=audio_data,
+            )
+            await self.callbacks.handle_audio_chunk(client, req)
             
         except Exception as e:
             logger.error(f"Error handling audio message from {client.user_id}: {e}")

@@ -27,6 +27,7 @@ class InterviewService:
         try:
             resp = self.interview_graph.invoke(request.session_id, request.user_input)
             return resp
+        
         except (InterviewSimulationException, Exception) as e:
             if type(e) != InterviewSimulationException:
                 e = InterviewSimulationException(error_code=InterviewSimulationErrorCodes.INTERNAL_ERROR, description=f"[{type(e).__name__}]: {str(e)}")

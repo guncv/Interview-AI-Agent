@@ -1,21 +1,21 @@
 import os, json
-from typing import Optional, Dict, Any, Type, TypeVar, Callable
+from typing import Optional, Dict, Any, Type, TypeVar, Callable, List
 from redis import Redis
 from internal.graph.interview.interview_state import InterviewState
 from enum import Enum
 from internal.graph.resume.resume_state import ResumeState
+from internal.config.config import nested_config as config
 
 T = TypeVar('T')
 
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 STATE_TTL_SECONDS = int(os.getenv("STATE_TTL_SECONDS", "900"))
-STATE_PREFIX = os.getenv("REDIS_STATE_PREFIX", "cpr:state")
-LOCK_PREFIX = os.getenv("REDIS_LOCK_PREFIX", "cpr:lock")
+STATE_PREFIX = os.getenv("REDIS_STATE_PREFIX", "interview-sim:state")
+LOCK_PREFIX = os.getenv("REDIS_LOCK_PREFIX", "interview-sim:lock")
+SEGMENT_STT_PREFIX = os.getenv("REDIS_SEGMENT_STT_PREFIX", "interview-sim:segment_stt")
 
 class RedisClient:
-
-    def __init__(self, redis_url: Optional[str] = None):
-        self.redis_url = redis_url or REDIS_URL
+    def __init__(self):
+        self.redis_url = config["redis"]["url"]
         self._redis = None
 
     @property
@@ -24,8 +24,8 @@ class RedisClient:
             self._redis = Redis.from_url(self.redis_url, decode_responses=True)
         return self._redis
 
-    def _state_key(self, session_id: str) -> str:
-        return f"{STATE_PREFIX}:{session_id}"
+    def _segment_stt_key(self, session_id: str, segment_id: str) -> str:
+        return f"{SEGMENT_STT_PREFIX}:{session_id}:{segment_id}"
 
     def _default_json_converter(self, obj):
         if isinstance(obj, Enum):
@@ -47,30 +47,53 @@ class RedisClient:
             return None
         return json.loads(raw)
 
-    def save_model_state(self, session_id: str, state: T, ttl_seconds: Optional[int] = None, custom_converter: Optional[Callable] = None) -> None:
+    def _save_model_state(self, session_id: str, state: T, ttl_seconds: Optional[int] = None, custom_converter: Optional[Callable] = None) -> None:
 
         state_dict = state.model_dump()
         self.save_state(session_id, state_dict, ttl_seconds, custom_converter)
 
-    def load_model_state(self, session_id: str, model_class: Type[T]) -> Optional[T]:
+    def _load_model_state(self, session_id: str, model_class: Type[T]) -> Optional[T]:
 
         data = self.load_state(session_id)
         if not data:
             return None
         return model_class(**data)
 
-    # Legacy functions for backward compatibility
-    def save_interview_state(self, session_id: str, state: InterviewState) -> None:
-        self.save_model_state(session_id, state)
-
-    def load_interview_state(self, session_id: str) -> Optional[InterviewState]:
-        return self.load_model_state(session_id, InterviewState)
-
     def save_resume_state(self, session_id: str, state: ResumeState) -> None:
-        self.save_model_state(session_id, state)
+        self._save_model_state(session_id, state)
 
     def load_resume_state(self, session_id: str) -> Optional[ResumeState]:
-        return self.load_model_state(session_id, ResumeState)
+        return self._load_model_state(session_id, ResumeState)
+    
+    def save_interview_state(self, session_id: str, state: InterviewState) -> None:
+        self._save_model_state(session_id, state)
+
+    def load_interview_state(self, session_id: str) -> Optional[InterviewState]:
+        return self._load_model_state(session_id, InterviewState)
+    
+    def save_segment_stt(self, session_id: str, segment_id: str, stt: str) -> None:
+        key = self._segment_stt_key(session_id, segment_id)
+
+        segment_data = self.redis.get(key)
+        if segment_data:
+            segment_data = json.loads(segment_data)
+        else:
+            segment_data = []
+
+        segment_data.append(stt)
+
+        self.redis.set(key, json.dumps(segment_data))
+
+    def get_segment_stt(self, session_id: str, segment_id: str) -> Optional[List[str]]:
+        key = self._segment_stt_key(session_id, segment_id)
+        segment_data = self.redis.get(key)
+        if segment_data:
+            return json.loads(segment_data)
+        return None
+
+    def clear_segment_stt(self, session_id: str, segment_id: str) -> None:
+        key = self._segment_stt_key(session_id, segment_id)
+        self.redis.delete(key)
 
     def clear_state(self, session_id: str) -> None:
         self.redis.delete(self._state_key(session_id))

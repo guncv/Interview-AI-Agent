@@ -100,4 +100,7 @@ session:
   query_param_secret_key: "${QUERY_PARAM_SECRET_KEY}"
 
 stt:
-  credentials_path: "${STT_CREDENTIALS_PATH}"
+  gcp_credentials_path: "${GCP_CREDENTIALS_PATH}"
+
+redis:
+  url: "${REDIS_URL:redis://localhost:6379/0}"
