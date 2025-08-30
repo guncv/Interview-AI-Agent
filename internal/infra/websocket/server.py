@@ -180,7 +180,15 @@ class WebSocketServer:
                 return
             
             header_length = struct.unpack('>I', content[:4])[0]
-            
+
+            # Validate header length to prevent reading corrupted data
+            if header_length <= 0:
+                await self._send_error(client, WebSocketErrorCode.INVALID_MESSAGE, "Invalid header length: must be positive")
+                return
+            if header_length > 10000:  # Reasonable upper bound for JSON header
+                await self._send_error(client, WebSocketErrorCode.INVALID_MESSAGE, f"Header length too large: {header_length} bytes")
+                return
+
             if len(content) < 4 + header_length:
                 await self._send_error(client, WebSocketErrorCode.INVALID_MESSAGE, "Audio message incomplete")
                 return
@@ -188,7 +196,15 @@ class WebSocketServer:
             header_bytes = content[4:4 + header_length]
             try:
                 header = json.loads(header_bytes.decode('utf-8'))
-            except (json.JSONDecodeError, UnicodeDecodeError) as e:
+            except UnicodeDecodeError as e:
+                logger.error(f"[Websocket: handle audio message] UTF-8 decode error at position {e.start}: byte 0x{e.object[e.start]:02x} in header")
+                logger.error(f"[Websocket: handle audio message] Header length: {header_length}, Total message length: {len(content)}")
+                logger.error(f"[Websocket: handle audio message] Header bytes (first 100): {header_bytes[:100] if len(header_bytes) > 0 else 'empty'}")
+                await self._send_error(client, WebSocketErrorCode.INVALID_MESSAGE, f"Invalid UTF-8 in header at position {e.start}")
+                return
+            except json.JSONDecodeError as e:
+                logger.error(f"[Websocket: handle audio message] JSON decode error: {e}")
+                logger.error(f"[Websocket: handle audio message] Header bytes as string: {header_bytes[:200].decode('utf-8', errors='replace') if len(header_bytes) > 0 else 'empty'}")
                 await self._send_error(client, WebSocketErrorCode.INVALID_MESSAGE, f"Invalid header JSON: {e}")
                 return
             

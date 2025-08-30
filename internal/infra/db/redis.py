@@ -21,7 +21,7 @@ class RedisClient:
     @property
     def redis(self):
         if self._redis is None:
-            self._redis = Redis.from_url(self.redis_url, decode_responses=True)
+            self._redis = Redis.from_url(self.redis_url, decode_responses=False)
         return self._redis
 
     def _segment_stt_key(self, session_id: str, segment_id: str) -> str:
@@ -71,25 +71,14 @@ class RedisClient:
     def load_interview_state(self, session_id: str) -> Optional[InterviewState]:
         return self._load_model_state(session_id, InterviewState)
     
-    def save_segment_stt(self, session_id: str, segment_id: str, stt: str) -> None:
+    def save_segment_stt(self, session_id: str, segment_id: str, chunk_data: bytes) -> None:
         key = self._segment_stt_key(session_id, segment_id)
+        self.redis.rpush(key, chunk_data)
 
-        segment_data = self.redis.get(key)
-        if segment_data:
-            segment_data = json.loads(segment_data)
-        else:
-            segment_data = []
-
-        segment_data.append(stt)
-
-        self.redis.set(key, json.dumps(segment_data))
-
-    def get_segment_stt(self, session_id: str, segment_id: str) -> Optional[List[str]]:
+    def get_segment_stt(self, session_id: str, segment_id: str) -> Optional[List[bytes]]:
         key = self._segment_stt_key(session_id, segment_id)
-        segment_data = self.redis.get(key)
-        if segment_data:
-            return json.loads(segment_data)
-        return None
+        chunks = self.redis.lrange(key, 0, -1)
+        return chunks if chunks else None
 
     def clear_segment_stt(self, session_id: str, segment_id: str) -> None:
         key = self._segment_stt_key(session_id, segment_id)
