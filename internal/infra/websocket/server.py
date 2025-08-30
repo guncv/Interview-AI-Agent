@@ -9,30 +9,26 @@ from enum import Enum
 from fastapi import WebSocket, WebSocketDisconnect
 from internal.infra.log.logger import logger
 from internal.domain.enum import WebSocketMessageType, WebSocketErrorCode
-from internal.domain.models.websocket import ErrorMessage
+from internal.domain.models.websocket import ErrorMessage, AudioChunkMessage, WebSocketClient, SegmentStartMessage, SegmentEndMessage
 from internal.infra.websocket.server_callback import WebSocketServerCallback
-
-@dataclass
-class WebSocketClient:
-    websocket: WebSocket
-    user_id: str
-    session_id: str
-    is_connected: bool = True
-    current_segment_id: Optional[str] = None
 
 class WebSocketServer:
     def __init__(self):
         self.active_connections: Dict[str, WebSocketClient] = {}
         self.user_sessions: Dict[str, Set[str]] = {}
-        self.callbacks: WebSocketServerCallback = WebSocketServerCallback()
+        self.callbacks = WebSocketServerCallback()
 
-    async def connect(self, websocket: WebSocket, user_id: str, session_id: str) -> WebSocketClient:
-        logger.info(f"[Websocket: connect] {user_id} {session_id}")
+    async def connect(self, websocket: WebSocket, params: dict) -> WebSocketClient:
+        user_id = params["user_id"]
+        session_id = params["session_id"]
+        language = params["language"]
+        
+        logger.info(f"[Websocket: connect] {user_id} {session_id} {language}")
         if session_id in self.active_connections:
             await self.disconnect(self.active_connections[session_id])
         await websocket.accept()
         
-        client = WebSocketClient(websocket, user_id, session_id)
+        client = WebSocketClient(websocket, user_id, session_id, language=language)
         self.active_connections[session_id] = client
         self.user_sessions.setdefault(user_id, set()).add(session_id)
         
@@ -66,7 +62,6 @@ class WebSocketServer:
         try:
             while client.is_connected:
                 message = await client.websocket.receive()
-                logger.info(f"[Websocket: read loop get message] {message}")
                 
                 if message["type"] == "websocket.disconnect":
                     break
@@ -102,7 +97,6 @@ class WebSocketServer:
 
         logger.info(f"Disconnected {client.user_id} from {client.session_id}")
 
-
     async def _handle_message(self, client: WebSocketClient, message: dict):
         logger.info(f"[Websocket: handle message] {client.user_id} {client.session_id}, {message}")
         try:
@@ -116,6 +110,32 @@ class WebSocketServer:
             logger.error(f"Handle error for {client.user_id}: {e}")
             await self._send_error(client, WebSocketErrorCode.INVALID_MESSAGE, str(e))
 
+    def _validate_segment_message(self, data: dict, expected_type: str) -> tuple[bool, str]:
+        required_fields = ["type", "session_id", "segment_id"]
+
+        for field in required_fields:
+            if field not in data:
+                return False, f"Missing required field: {field}"
+
+        if data["type"] != expected_type:
+            return False, f"Invalid message type: expected {expected_type}, got {data['type']}"
+
+        return True, ""
+
+    def _create_segment_start_message(self, data: dict) -> SegmentStartMessage:
+        return SegmentStartMessage(
+            type=data["type"],
+            session_id=data["session_id"],
+            segment_id=data["segment_id"]
+        )
+
+    def _create_segment_end_message(self, data: dict) -> SegmentEndMessage:
+        return SegmentEndMessage(
+            type=data["type"],
+            session_id=data["session_id"],
+            segment_id=data["segment_id"]
+        )
+
     async def _handle_text_message(self, client: WebSocketClient, content: str):
         logger.info(f"[Websocket: handle text message]: {client.user_id} {client.session_id}, {content}")
         try:
@@ -125,9 +145,23 @@ class WebSocketServer:
 
             match t:
                 case WebSocketMessageType.SEGMENT_START:
-                    await self.callbacks.handle_segment_start(client, data)
+                    is_valid, error_msg = self._validate_segment_message(data, WebSocketMessageType.SEGMENT_START)
+                    if not is_valid:
+                        await self._send_error(client, WebSocketErrorCode.INVALID_MESSAGE, error_msg)
+                        return
+
+                    segment_start_msg = self._create_segment_start_message(data)
+                    await self.callbacks.handle_segment_start(client, segment_start_msg)
+
                 case WebSocketMessageType.SEGMENT_END:
-                    await self.callbacks.handle_segment_end(client, data)
+                    is_valid, error_msg = self._validate_segment_message(data, WebSocketMessageType.SEGMENT_END)
+                    if not is_valid:
+                        await self._send_error(client, WebSocketErrorCode.INVALID_MESSAGE, error_msg)
+                        return
+
+                    segment_end_msg = self._create_segment_end_message(data)
+                    await self.callbacks.handle_segment_end(client, segment_end_msg)
+
                 case _:
                     await self._send_json(client, {"type": WebSocketMessageType.ECHO, "content": data})
                     
@@ -138,7 +172,7 @@ class WebSocketServer:
             await self._send_error(client, WebSocketErrorCode.INVALID_MESSAGE, str(e))
 
     async def _handle_audio_message(self, client: WebSocketClient, content: bytes):
-        logger.info(f"[Websocket: handle audio message]: {client.user_id} {client.session_id}, audio data length: {len(content)}")
+        logger.info(f"[Websocket: handle audio message]: Called")
         
         try:
             if len(content) < 4:
@@ -146,7 +180,15 @@ class WebSocketServer:
                 return
             
             header_length = struct.unpack('>I', content[:4])[0]
-            
+
+            # Validate header length to prevent reading corrupted data
+            if header_length <= 0:
+                await self._send_error(client, WebSocketErrorCode.INVALID_MESSAGE, "Invalid header length: must be positive")
+                return
+            if header_length > 10000:  # Reasonable upper bound for JSON header
+                await self._send_error(client, WebSocketErrorCode.INVALID_MESSAGE, f"Header length too large: {header_length} bytes")
+                return
+
             if len(content) < 4 + header_length:
                 await self._send_error(client, WebSocketErrorCode.INVALID_MESSAGE, "Audio message incomplete")
                 return
@@ -154,7 +196,15 @@ class WebSocketServer:
             header_bytes = content[4:4 + header_length]
             try:
                 header = json.loads(header_bytes.decode('utf-8'))
-            except (json.JSONDecodeError, UnicodeDecodeError) as e:
+            except UnicodeDecodeError as e:
+                logger.error(f"[Websocket: handle audio message] UTF-8 decode error at position {e.start}: byte 0x{e.object[e.start]:02x} in header")
+                logger.error(f"[Websocket: handle audio message] Header length: {header_length}, Total message length: {len(content)}")
+                logger.error(f"[Websocket: handle audio message] Header bytes (first 100): {header_bytes[:100] if len(header_bytes) > 0 else 'empty'}")
+                await self._send_error(client, WebSocketErrorCode.INVALID_MESSAGE, f"Invalid UTF-8 in header at position {e.start}")
+                return
+            except json.JSONDecodeError as e:
+                logger.error(f"[Websocket: handle audio message] JSON decode error: {e}")
+                logger.error(f"[Websocket: handle audio message] Header bytes as string: {header_bytes[:200].decode('utf-8', errors='replace') if len(header_bytes) > 0 else 'empty'}")
                 await self._send_error(client, WebSocketErrorCode.INVALID_MESSAGE, f"Invalid header JSON: {e}")
                 return
             
@@ -172,17 +222,13 @@ class WebSocketServer:
                 await self._send_error(client, WebSocketErrorCode.SESSION_ID_MISMATCH, "Session ID mismatch")
                 return
             
-            
-            logger.info(f"[Websocket: handle audio chunk]: {client.user_id} {client.session_id}, segment: {segment_id}, audio size: {len(audio_data)}")
-            await self.callbacks.handle_audio_chunk(client, {
-                "type": msg_type,
-                "session_id": session_id,
-                "segment_id": segment_id,
-                "audio_data": audio_data,
-                "audio_length": len(audio_data)
-            })
-            
-            logger.info(f"[Websocket: audio processed] {client.user_id} {client.session_id}, segment: {segment_id}, audio size: {len(audio_data)}")
+
+            req = AudioChunkMessage(
+                type=msg_type,
+                segment_id=segment_id,
+                audio_data=audio_data,
+            )
+            await self.callbacks.handle_audio_chunk(client, req)
             
         except Exception as e:
             logger.error(f"Error handling audio message from {client.user_id}: {e}")

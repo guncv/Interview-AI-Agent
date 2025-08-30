@@ -1,5 +1,16 @@
 from dataclasses import dataclass
 from typing import Optional
+from fastapi import WebSocket
+
+
+@dataclass
+class WebSocketClient:
+    websocket: WebSocket
+    user_id: str
+    session_id: str
+    language: str
+    is_connected: bool = True
+    current_segment_id: Optional[str] = None
 
 
 @dataclass
@@ -21,11 +32,15 @@ class SegmentEndMessage:
     type: str
     session_id: str
     segment_id: str
-    timestamp: Optional[float] = None
-
 
 @dataclass
 class ErrorMessage:
     type: str = "error"
     code: str = ""
     message: str = ""
+    
+@dataclass
+class AudioChunkMessage:
+    type: str
+    segment_id: str
+    audio_data: bytes

@@ -6,7 +6,6 @@ from dotenv import load_dotenv
 
 load_dotenv('.env.dev')
 
-
 class ConfigLoader:
     def __init__(self, environment: str = None):
         self.environment = environment or os.getenv('ENV', 'dev')

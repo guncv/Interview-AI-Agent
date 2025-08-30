@@ -9,6 +9,9 @@ dependencies:
   - pydantic>=2.7,<3
   - httpx
   - gunicorn
+  - google-cloud-speech=2.21.0
+  - libgcc-ng
+  - libstdcxx-ng
   - pip:
       - openai
       - python-dotenv

@@ -1,5 +1,6 @@
-FROM mambaorg/micromamba:bullseye-slim
+FROM mambaorg/micromamba:latest
 
+USER $MAMBA_USER
 WORKDIR /src
 
 COPY --chown=$MAMBA_USER:$MAMBA_USER package.yaml /tmp/freeze_env.yaml

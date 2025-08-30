@@ -21,6 +21,7 @@ async def get_websocket_params(
     return {
         "user_id": payload["user_id"],
         "session_id": payload["session_id"],
+        "language": payload["language"],
     }
 
 @router.websocket("/connect")
@@ -28,7 +29,11 @@ async def websocket_endpoint(websocket: WebSocket, params: dict = Depends(get_we
     logger.info(f"[Websocket: connect] Starting connection with params: {params}")
 
     try:
-        client = await ws_server.connect(websocket, params["user_id"], params["session_id"])
+        if not params["user_id"] or not params["session_id"] or not params["language"]:
+            logger.error(f"[Websocket: connect] Missing required parameters")
+            raise HTTPException(status_code=400, detail="Missing required parameters")
+        
+        client = await ws_server.connect(websocket, params)
         await ws_server.serve(client)
     except Exception as e:
         logger.error(f"Failed to establish WebSocket connection: {e}")

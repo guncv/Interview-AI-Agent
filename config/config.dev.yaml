@@ -98,3 +98,9 @@ logging:
 
 session:
   query_param_secret_key: "${QUERY_PARAM_SECRET_KEY}"
+
+stt:
+  gcp_credentials_path: "${GCP_CREDENTIALS_PATH}"
+
+redis:
+  url: "${REDIS_URL:redis://localhost:6379/0}"

@@ -1,57 +1,102 @@
 import os, json
-from typing import Optional
+from typing import Optional, Dict, Any, Type, TypeVar, Callable, List
 from redis import Redis
 from internal.graph.interview.interview_state import InterviewState
 from enum import Enum
 from internal.graph.resume.resume_state import ResumeState
+from internal.config.config import nested_config as config
 
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+T = TypeVar('T')
+
 STATE_TTL_SECONDS = int(os.getenv("STATE_TTL_SECONDS", "900"))
-STATE_PREFIX = os.getenv("REDIS_STATE_PREFIX", "cpr:state")
-LOCK_PREFIX = os.getenv("REDIS_LOCK_PREFIX", "cpr:lock")
+STATE_PREFIX = os.getenv("REDIS_STATE_PREFIX", "interview-sim:state")
+LOCK_PREFIX = os.getenv("REDIS_LOCK_PREFIX", "interview-sim:lock")
+SEGMENT_STT_PREFIX = os.getenv("REDIS_SEGMENT_STT_PREFIX", "interview-sim:segment_stt")
 
-r = Redis.from_url(REDIS_URL, decode_responses=True)
+class RedisClient:
+    def __init__(self):
+        self.redis_url = config["redis"]["url"]
+        self._redis = None
 
-def _state_key(session_id: str) -> str:
-    return f"{STATE_PREFIX}:{session_id}"
+    @property
+    def redis(self):
+        if self._redis is None:
+            self._redis = Redis.from_url(self.redis_url, decode_responses=False)
+        return self._redis
 
-def save_interview_state(session_id: str, state: InterviewState) -> None:
-    def enum_converter(obj):
-        if isinstance(obj, Enum):
-            return obj.value
-        raise TypeError(f'Object of type {obj.__class__.__name__} is not JSON serializable')
-    
-    state_dict = state.model_dump()
-    r.setex(_state_key(session_id), STATE_TTL_SECONDS, json.dumps(state_dict, ensure_ascii=False, default=enum_converter))
+    def _segment_stt_key(self, session_id: str, segment_id: str) -> str:
+        return f"{SEGMENT_STT_PREFIX}:{session_id}:{segment_id}"
 
-def load_interview_state(session_id: str) -> Optional[InterviewState]:
-    raw = r.get(_state_key(session_id))
-    if not raw:
-        return None
-    return InterviewState(**json.loads(raw))
-
-def save_resume_state(session_id: str, state: ResumeState) -> None:
-    def resume_converter(obj):
+    def _default_json_converter(self, obj):
         if isinstance(obj, Enum):
             return obj.value
         if isinstance(obj, bytes):
             return obj.decode('utf-8', errors='ignore')
         raise TypeError(f'Object of type {obj.__class__.__name__} is not JSON serializable')
+
+    def save_state(self, session_id: str, data: Dict[str, Any], ttl_seconds: Optional[int] = None, custom_converter: Optional[Callable] = None) -> None:
+
+        converter = custom_converter or self._default_json_converter
+        ttl = ttl_seconds or STATE_TTL_SECONDS
+        self.redis.setex(self._state_key(session_id), ttl, json.dumps(data, ensure_ascii=False, default=converter))
+
+    def load_state(self, session_id: str) -> Optional[Dict[str, Any]]:
+
+        raw = self.redis.get(self._state_key(session_id))
+        if not raw:
+            return None
+        return json.loads(raw)
+
+    def _save_model_state(self, session_id: str, state: T, ttl_seconds: Optional[int] = None, custom_converter: Optional[Callable] = None) -> None:
+
+        state_dict = state.model_dump()
+        self.save_state(session_id, state_dict, ttl_seconds, custom_converter)
+
+    def _load_model_state(self, session_id: str, model_class: Type[T]) -> Optional[T]:
+
+        data = self.load_state(session_id)
+        if not data:
+            return None
+        return model_class(**data)
+
+    def save_resume_state(self, session_id: str, state: ResumeState) -> None:
+        self._save_model_state(session_id, state)
+
+    def load_resume_state(self, session_id: str) -> Optional[ResumeState]:
+        return self._load_model_state(session_id, ResumeState)
     
-    state_dict = state.model_dump()
-    r.setex(_state_key(session_id), STATE_TTL_SECONDS, json.dumps(state_dict, ensure_ascii=False, default=resume_converter))
+    def save_interview_state(self, session_id: str, state: InterviewState) -> None:
+        self._save_model_state(session_id, state)
 
-def load_resume_state(session_id: str) -> Optional[ResumeState]:
-    raw = r.get(_state_key(session_id))
-    if not raw:
-        return None
-    return ResumeState(**json.loads(raw))
-
-def clear_state(session_id: str) -> None:
-    r.delete(_state_key(session_id))
+    def load_interview_state(self, session_id: str) -> Optional[InterviewState]:
+        return self._load_model_state(session_id, InterviewState)
     
-def acquire_lock(session_id: str, ttl: int = 5) -> bool:
-    return bool(r.set(f"{LOCK_PREFIX}:{session_id}", "1", nx=True, ex=ttl))
+    def save_segment_stt(self, session_id: str, segment_id: str, chunk_data: bytes) -> None:
+        key = self._segment_stt_key(session_id, segment_id)
+        self.redis.rpush(key, chunk_data)
 
-def release_lock(session_id: str) -> None:
-    r.delete(f"{LOCK_PREFIX}:{session_id}")
+    def get_segment_stt(self, session_id: str, segment_id: str) -> Optional[List[bytes]]:
+        key = self._segment_stt_key(session_id, segment_id)
+        chunks = self.redis.lrange(key, 0, -1)
+        return chunks if chunks else None
+
+    def clear_segment_stt(self, session_id: str, segment_id: str) -> None:
+        key = self._segment_stt_key(session_id, segment_id)
+        self.redis.delete(key)
+
+    def clear_state(self, session_id: str) -> None:
+        self.redis.delete(self._state_key(session_id))
+
+    def acquire_lock(self, session_id: str, ttl: int = 5) -> bool:
+        return bool(self.redis.set(f"{LOCK_PREFIX}:{session_id}", "1", nx=True, ex=ttl))
+
+    def release_lock(self, session_id: str) -> None:
+        self.redis.delete(f"{LOCK_PREFIX}:{session_id}")
+
+    def close(self):
+        if self._redis:
+            self._redis.close()
+            self._redis = None
+
+
+redis_client = RedisClient()
