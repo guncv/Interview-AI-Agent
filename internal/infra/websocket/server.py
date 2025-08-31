@@ -98,7 +98,7 @@ class WebSocketServer:
         logger.info(f"Disconnected {client.user_id} from {client.session_id}")
 
     async def _handle_message(self, client: WebSocketClient, message: dict):
-        logger.info(f"[Websocket: handle message] {client.user_id} {client.session_id}, {message}")
+        logger.info(f"[Websocket: handle message] Called")
         try:
             content = message.get("bytes") or message.get("text", "")
             if isinstance(content, bytes):
@@ -137,7 +137,7 @@ class WebSocketServer:
         )
 
     async def _handle_text_message(self, client: WebSocketClient, content: str):
-        logger.info(f"[Websocket: handle text message]: {client.user_id} {client.session_id}, {content}")
+        logger.info(f"[Websocket: handle text message]: Called")
         try:
             logger.info(f"[Websocket: handle text message inside loop]: {content}")
             data = json.loads(content)

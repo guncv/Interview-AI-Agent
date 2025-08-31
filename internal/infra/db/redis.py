@@ -12,6 +12,7 @@ STATE_TTL_SECONDS = int(os.getenv("STATE_TTL_SECONDS", "900"))
 STATE_PREFIX = os.getenv("REDIS_STATE_PREFIX", "interview-sim:state")
 LOCK_PREFIX = os.getenv("REDIS_LOCK_PREFIX", "interview-sim:lock")
 SEGMENT_STT_PREFIX = os.getenv("REDIS_SEGMENT_STT_PREFIX", "interview-sim:segment_stt")
+PREV_SEGMENT_PREFIX = os.getenv("REDIS_PREV_SEGMENT_PREFIX", "interview-sim:prev_segment")
 
 class RedisClient:
     def __init__(self):
@@ -26,6 +27,9 @@ class RedisClient:
 
     def _segment_stt_key(self, session_id: str, segment_id: str) -> str:
         return f"{SEGMENT_STT_PREFIX}:{session_id}:{segment_id}"
+
+    def _prev_segment_key(self, session_id: str, segment_id: str) -> str:
+        return f"{PREV_SEGMENT_PREFIX}:{session_id}:{segment_id}"
 
     def _default_json_converter(self, obj):
         if isinstance(obj, Enum):
@@ -71,14 +75,34 @@ class RedisClient:
     def load_interview_state(self, session_id: str) -> Optional[InterviewState]:
         return self._load_model_state(session_id, InterviewState)
     
-    def save_segment_stt(self, session_id: str, segment_id: str, chunk_data: bytes) -> None:
+    def save_prev_segment_chunk(self, session_id: str, segment_id: str, chunk: bytes) -> None:
+        key = self._prev_segment_key(session_id, segment_id)
+        self.redis.set(key, chunk)
+    
+    def get_prev_segment_chunk(self, session_id: str, segment_id: str) -> bytes:
+        key = self._prev_segment_key(session_id, segment_id)
+        prev_segment = self.redis.get(key)
+        return prev_segment if prev_segment else None
+        
+    def save_segment_stt(self, session_id: str, segment_id: str, stt: str) -> None:
         key = self._segment_stt_key(session_id, segment_id)
-        self.redis.rpush(key, chunk_data)
 
-    def get_segment_stt(self, session_id: str, segment_id: str) -> Optional[List[bytes]]:
+        segment_data = self.redis.get(key)
+        if segment_data:
+            segment_data = json.loads(segment_data)
+        else:
+            segment_data = []
+
+        segment_data.append(stt)
+
+        self.redis.set(key, json.dumps(segment_data))
+
+    def get_segment_stt(self, session_id: str, segment_id: str) -> Optional[List[str]]:
         key = self._segment_stt_key(session_id, segment_id)
-        chunks = self.redis.lrange(key, 0, -1)
-        return chunks if chunks else None
+        segment_data = self.redis.get(key)
+        if segment_data:
+            return json.loads(segment_data)
+        return None
 
     def clear_segment_stt(self, session_id: str, segment_id: str) -> None:
         key = self._segment_stt_key(session_id, segment_id)

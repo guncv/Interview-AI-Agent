@@ -73,4 +73,9 @@ class GCP_SpeechToText:
         
         return transcript.strip()
 
+    def remove_prefix(self, text: str, prefix: str) -> str:
+        if text.startswith(prefix):
+            return text[len(prefix):].lstrip()
+        return text
+
 
