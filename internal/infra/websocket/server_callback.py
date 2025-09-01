@@ -23,9 +23,10 @@ class WebSocketServerCallback:
             if prev_chunk:
                 combined_chunks.append(prev_chunk)
             combined_chunks.append(audio_message.audio_data)
-
+            bias_prompt = self.redis_client.get_session_bias_prompt(client.session_id)
+            
             logger.info(f"[Websocket: handle audio chunk] Combined chunks length: {len(combined_chunks)}")
-            full_transcript: str = self.stt_client.transcribe_streaming_from_chunks(combined_chunks, client.language)
+            full_transcript: str = self.stt_client.transcribe_streaming_from_chunks_v2(combined_chunks, client.language, bias_prompt)
             logger.info(f"[Websocket: handle audio chunk] Full transcript: {full_transcript}")
             
             all_transcripts = self.redis_client.get_segment_stt(client.session_id, audio_message.segment_id)

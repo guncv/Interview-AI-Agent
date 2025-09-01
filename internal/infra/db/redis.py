@@ -5,6 +5,7 @@ from internal.graph.interview.interview_state import InterviewState
 from enum import Enum
 from internal.graph.resume.resume_state import ResumeState
 from internal.config.config import nested_config as config
+from internal.infra.log.logger import logger
 
 T = TypeVar('T')
 
@@ -13,6 +14,7 @@ STATE_PREFIX = os.getenv("REDIS_STATE_PREFIX", "interview-sim:state")
 LOCK_PREFIX = os.getenv("REDIS_LOCK_PREFIX", "interview-sim:lock")
 SEGMENT_STT_PREFIX = os.getenv("REDIS_SEGMENT_STT_PREFIX", "interview-sim:segment_stt")
 PREV_SEGMENT_PREFIX = os.getenv("REDIS_PREV_SEGMENT_PREFIX", "interview-sim:prev_segment")
+BIAS_PROMPT_PREFIX = os.getenv("REDIS_BIAS_PROMPT_PREFIX", "interview-sim:bias_prompt")
 
 class RedisClient:
     def __init__(self):
@@ -30,6 +32,12 @@ class RedisClient:
 
     def _prev_segment_key(self, session_id: str, segment_id: str) -> str:
         return f"{PREV_SEGMENT_PREFIX}:{session_id}:{segment_id}"
+
+    def _state_key(self, session_id: str) -> str:
+        return f"{STATE_PREFIX}:{session_id}"
+
+    def _bias_prompt_key(self, session_id: str) -> str:
+        return f"{BIAS_PROMPT_PREFIX}:{session_id}"
 
     def _default_json_converter(self, obj):
         if isinstance(obj, Enum):
@@ -107,6 +115,19 @@ class RedisClient:
     def clear_segment_stt(self, session_id: str, segment_id: str) -> None:
         key = self._segment_stt_key(session_id, segment_id)
         self.redis.delete(key)
+        
+    def save_session_bias_prompt(self, session_id: str, bias_prompt: List[str], ttl_seconds: Optional[int] = None) -> None:
+        key = self._bias_prompt_key(session_id)
+        if ttl_seconds is not None:
+            self.redis.setex(key, ttl_seconds, json.dumps(bias_prompt))
+        else:
+            self.redis.set(key, json.dumps(bias_prompt))
+        
+    def get_session_bias_prompt(self, session_id: str) -> Optional[List[str]]:
+        key = self._bias_prompt_key(session_id)
+        bias_prompt = self.redis.get(key)
+        
+        return json.loads(bias_prompt) if bias_prompt else None
 
     def clear_state(self, session_id: str) -> None:
         self.redis.delete(self._state_key(session_id))

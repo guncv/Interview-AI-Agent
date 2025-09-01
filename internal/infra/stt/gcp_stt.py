@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 from google.cloud import speech_v2, speech
 from internal.infra.log.logger import logger
 from internal.config.config import nested_config as config
@@ -12,15 +12,23 @@ class GCP_SpeechToText:
         self.recognizer = f"projects/{self.project_id}/locations/{self.location}/recognizers/_"
 
     def transcribe_streaming_from_chunks(
-        self, audio_chunks: List[bytes], language_code: str
+        self, audio_chunks: List[bytes], language_code: str, bias_prompt: Optional[List[str]]
     ) -> str:
         logger.info("[GCP_SpeechToText: transcribe_streaming_from_chunks] Called")
         
+        speech_contexts = None
+        logger.info(f"[GCP_SpeechToText: transcribe_streaming_from_chunks] Bias prompt: {bias_prompt}")
+        if bias_prompt:
+            speech_contexts = [speech.SpeechContext(phrases=bias_prompt)]
+            logger.info(f"[GCP_SpeechToText: transcribe_streaming_from_chunks] Using bias prompts: {bias_prompt}")
+    
         recognition_config = speech.RecognitionConfig(
             encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
             sample_rate_hertz=16000,
             language_code=language_code,
-            model='latest_long', )
+            model='latest_long',
+            speech_contexts=speech_contexts,
+        )
         
         streaming_config = speech.StreamingRecognitionConfig(
             config=recognition_config,
@@ -47,7 +55,7 @@ class GCP_SpeechToText:
         return transcript.strip()
         
     def transcribe_streaming_from_chunks_v2(
-        self, audio_chunks: List[bytes], language_code: str
+        self, audio_chunks: List[bytes], language_code: str, bias_prompt: Optional[List[str]] = None
     ) -> str:
         logger.info(f"[GCP_SpeechToTextV2: transcribe_streaming_from_chunks_v2] Called with {len(audio_chunks)} chunks")
 
@@ -58,6 +66,22 @@ class GCP_SpeechToText:
         total_size = sum(len(chunk) for chunk in audio_chunks if chunk)
         logger.info(f"[GCP_SpeechToTextV2: transcribe_streaming_from_chunks_v2] Total audio size: {total_size} bytes")
 
+        adaptation = None
+        if bias_prompt:
+            adaptation = speech_v2.Adaptation(
+                phrase_sets=[
+                    speech_v2.PhraseSet(
+                        phrases=[
+                            speech_v2.PhraseSet.Phrase(
+                                value=phrase,
+                                boost=10
+                            ) for phrase in bias_prompt
+                        ]
+                    )
+                ]
+            )
+            logger.info(f"[GCP_SpeechToTextV2: transcribe_streaming_from_chunks_v2] Using bias prompts: {bias_prompt}")
+
         recognition_config = speech_v2.RecognitionConfig(
             auto_decoding_config=speech_v2.AutoDetectDecodingConfig(),
             language_codes=[language_code],
@@ -66,6 +90,7 @@ class GCP_SpeechToText:
                 enable_word_time_offsets=True,
                 enable_word_confidence=True,
             ),
+            adaptation=adaptation,
         )
 
         streaming_config = speech_v2.StreamingRecognitionConfig(
@@ -90,7 +115,7 @@ class GCP_SpeechToText:
 
         transcript = ""
         try:
-            responses = self.client_v2.streaming_recognize(requests=request_generator())
+            responses = self.client_v2.streaming_recognize(streaming_config, request_generator())
             for response in responses:
                 for result in response.results:
                     alt = result.alternatives[0]
