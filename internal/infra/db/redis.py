@@ -6,6 +6,8 @@ from enum import Enum
 from internal.graph.resume.resume_state import ResumeState
 from internal.config.config import nested_config as config
 from internal.infra.log.logger import logger
+from internal.domain.models.speech_recognize import SpeechRecognize, Word
+import dataclasses
 
 T = TypeVar('T')
 
@@ -13,8 +15,9 @@ STATE_TTL_SECONDS = int(os.getenv("STATE_TTL_SECONDS", "900"))
 STATE_PREFIX = os.getenv("REDIS_STATE_PREFIX", "interview-sim:state")
 LOCK_PREFIX = os.getenv("REDIS_LOCK_PREFIX", "interview-sim:lock")
 SEGMENT_STT_PREFIX = os.getenv("REDIS_SEGMENT_STT_PREFIX", "interview-sim:segment_stt")
-PREV_SEGMENT_PREFIX = os.getenv("REDIS_PREV_SEGMENT_PREFIX", "interview-sim:prev_segment")
+PREV_SEGMENT_CHUNK_PREFIX = os.getenv("REDIS_PREV_SEGMENT_CHUNK_PREFIX", "interview-sim:prev_segment_chunk")
 BIAS_PROMPT_PREFIX = os.getenv("REDIS_BIAS_PROMPT_PREFIX", "interview-sim:bias_prompt")
+PREV_SEGMENT_STT_PREFIX = os.getenv("REDIS_PREV_SEGMENT_STT_PREFIX", "interview-sim:prev_segment_stt")
 
 class RedisClient:
     def __init__(self):
@@ -31,7 +34,10 @@ class RedisClient:
         return f"{SEGMENT_STT_PREFIX}:{session_id}:{segment_id}"
 
     def _prev_segment_key(self, session_id: str, segment_id: str) -> str:
-        return f"{PREV_SEGMENT_PREFIX}:{session_id}:{segment_id}"
+        return f"{PREV_SEGMENT_CHUNK_PREFIX}:{session_id}:{segment_id}"
+
+    def _prev_segment_stt_key(self, session_id: str, segment_id: str) -> str:
+        return f"{PREV_SEGMENT_STT_PREFIX}:{session_id}:{segment_id}"
 
     def _state_key(self, session_id: str) -> str:
         return f"{STATE_PREFIX}:{session_id}"
@@ -91,7 +97,21 @@ class RedisClient:
         key = self._prev_segment_key(session_id, segment_id)
         prev_segment = self.redis.get(key)
         return prev_segment if prev_segment else None
-        
+    
+    def save_prev_segment_stt(self, session_id: str, segment_id: str, prev_segment_stt: SpeechRecognize) -> None:
+        key = self._prev_segment_stt_key(session_id, segment_id)
+        self.redis.set(key, json.dumps(dataclasses.asdict(prev_segment_stt)))
+    
+    def get_prev_segment_stt(self, session_id: str, segment_id: str) -> Optional[SpeechRecognize]:
+        key = self._prev_segment_stt_key(session_id, segment_id)
+        prev_segment_stt = self.redis.get(key)
+        if not prev_segment_stt:
+            return None
+
+        data = json.loads(prev_segment_stt)
+        words = [Word(**word_data) for word_data in data['words']]
+        return SpeechRecognize(transcript=data['transcript'], words=words)
+    
     def save_segment_stt(self, session_id: str, segment_id: str, stt: str) -> None:
         key = self._segment_stt_key(session_id, segment_id)
 
@@ -115,7 +135,15 @@ class RedisClient:
     def clear_segment_stt(self, session_id: str, segment_id: str) -> None:
         key = self._segment_stt_key(session_id, segment_id)
         self.redis.delete(key)
+    
+    def clear_prev_segment_stt(self, session_id: str, segment_id: str) -> None:
+        key = self._prev_segment_stt_key(session_id, segment_id)
+        self.redis.delete(key)
         
+    def clear_prev_segment_chunk(self, session_id: str, segment_id: str) -> None:
+        key = self._prev_segment_key(session_id, segment_id)
+        self.redis.delete(key)
+    
     def save_session_bias_prompt(self, session_id: str, bias_prompt: List[str], ttl_seconds: Optional[int] = None) -> None:
         key = self._bias_prompt_key(session_id)
         if ttl_seconds is not None:

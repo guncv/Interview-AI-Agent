@@ -1,8 +1,10 @@
 from typing import List, Optional
-from google.cloud import speech_v2, speech
+from google.cloud import speech, speech_v2
+from google.cloud.speech_v2.types import cloud_speech
 from internal.infra.log.logger import logger
 from internal.config.config import nested_config as config
 from typing import Generator
+from internal.domain.models.speech_recognize import SpeechRecognize, Word
 
 class GCP_SpeechToText:
     def __init__(self):
@@ -60,52 +62,55 @@ class GCP_SpeechToText:
 
     def transcribe_streaming_from_chunks_v2(
         self, audio_chunks: List[bytes], language_code: str, bias_prompt: Optional[List[str]] = None
-    ) -> str:
+    ) -> SpeechRecognize:
         logger.info(f"[GCP_SpeechToTextV2] Called with {len(audio_chunks)} chunks")
 
         adaptation = None
         if bias_prompt:
-            adaptation = speech_v2.Adaptation(
+            adaptation = cloud_speech.SpeechAdaptation(
                 phrase_sets=[
-                    speech_v2.PhraseSet(
-                        phrases=[
-                            speech_v2.PhraseSet.Phrase(value=phrase, boost=20)
-                            for phrase in bias_prompt
-                        ]
+                    cloud_speech.SpeechAdaptation.AdaptationPhraseSet(
+                        inline_phrase_set=cloud_speech.PhraseSet(
+                            phrases=[
+                                cloud_speech.PhraseSet.Phrase(value=phrase, boost=20)
+                                for phrase in bias_prompt
+                            ]
+                        )
                     )
                 ]
             )
 
-        recognition_config = speech_v2.RecognitionConfig(
-            explicit_decoding_config=speech_v2.ExplicitDecodingConfig(
-                encoding=speech_v2.ExplicitDecodingConfig.AudioEncoding.LINEAR16,
+        words = []
+        recognition_config = cloud_speech.RecognitionConfig(
+            explicit_decoding_config=cloud_speech.ExplicitDecodingConfig(
+                encoding=cloud_speech.ExplicitDecodingConfig.AudioEncoding.LINEAR16,
                 sample_rate_hertz=16000,
                 audio_channel_count=1
             ),
             language_codes=[language_code],
             model="long",
-            features=speech_v2.RecognitionFeatures(
+            features=cloud_speech.RecognitionFeatures(
                 enable_word_time_offsets=True,
                 enable_word_confidence=True,
             ),
             adaptation=adaptation,
         )
 
-        streaming_config = speech_v2.StreamingRecognitionConfig(
+        streaming_config = cloud_speech.StreamingRecognitionConfig(
             config=recognition_config
         )
 
-        config_request = speech_v2.StreamingRecognizeRequest(
+        config_request = cloud_speech.StreamingRecognizeRequest(
             recognizer=self.recognizer,
             streaming_config=streaming_config,
         )
 
-        def requests() -> Generator[speech_v2.StreamingRecognizeRequest, None, None]:
+        def requests() -> Generator[cloud_speech.StreamingRecognizeRequest, None, None]:
             yield config_request
             for chunk in audio_chunks:
                 for sliced_chunk in self.slice_audio_chunks(chunk):
                     logger.info(f"[GCP_SpeechToTextV2] Yielding audio slice (≤25600 bytes)")
-                    yield speech_v2.StreamingRecognizeRequest(audio=sliced_chunk)
+                    yield cloud_speech.StreamingRecognizeRequest(audio=sliced_chunk)
 
         transcript = ""
         try:
@@ -120,11 +125,16 @@ class GCP_SpeechToText:
                         end = word_info.end_offset.total_seconds()
                         confidence = word_info.confidence
                         logger.info(f"[GCP_SpeechToTextV2] Word: '{word}' | Start: {start:.2f}s | End: {end:.2f}s | Confidence: {confidence:.2f}")
+                        words.append(
+                            Word(word=word, start=start, end=end, confidence=confidence)
+                        )
+
         except Exception as e:
             logger.error(f"[GCP_SpeechToTextV2] Error: {e}")
 
         logger.info(f"[GCP_SpeechToTextV2] Final Transcript: {transcript.strip()}")
-        return transcript.strip()
+        result = SpeechRecognize(transcript=transcript.strip(), words=words)
+        return result
 
     def slice_audio_chunks(self, large_chunk: bytes) -> list[bytes]:
         SAMPLE_WIDTH = 2
