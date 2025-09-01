@@ -73,6 +73,7 @@ class ResumeGraph:
         return step_to_node.get(state.current_step, ResumeNode.ERROR_HANDLER.value)
 
     def _parse_resume_node(self, state: ResumeState) -> ResumeState:
+        logger.info(f"[PARSE_RESUME] Parsing resume for session {state.session_id}")
         try:
             text = ""
             file_input = BytesIO(state.file_input)
@@ -96,6 +97,7 @@ class ResumeGraph:
             })
 
     def _extract_info_node(self, state: ResumeState) -> ResumeState:
+        logger.info(f"[EXTRACT_INFO] Extracting info for session {state.session_id}")
         try:
             prompt_info = self._invoke_node(EXTRACT_INFO_PROMPT, PromptInfo, state.session_id, state.resume_text)
                 
@@ -115,7 +117,7 @@ class ResumeGraph:
             })
 
     def _timeout_retry_node(self, state: ResumeState) -> ResumeState:
-        logger.info(f"[TIMEOUT_RETRY] Handling timeout for session {state.session_id}")
+        logger.info(f"[TIMEOUT_RETRY] Handling timeout for session {state.session_id} and retry {state.retry_count}")
         
         return state.model_copy(update={
             "current_step": ResumeStep.EXTRACT_INFO,

@@ -1,6 +1,4 @@
 from pydantic import BaseModel
-from io import BytesIO
-from typing import Any, Optional
 from internal.graph.resume.resume_state import PromptInfo
 
 class HealthCheckResponse(BaseModel):
