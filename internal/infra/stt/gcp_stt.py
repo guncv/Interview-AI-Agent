@@ -2,6 +2,7 @@ from typing import List, Optional
 from google.cloud import speech_v2, speech
 from internal.infra.log.logger import logger
 from internal.config.config import nested_config as config
+from typing import Generator
 
 class GCP_SpeechToText:
     def __init__(self):
@@ -9,7 +10,7 @@ class GCP_SpeechToText:
         self.client_v2 = speech_v2.SpeechClient.from_service_account_file(config["stt"]["gcp_credentials_path"])
         self.project_id = config["stt"]["gcp_project_id"]
         self.location = config["stt"]["gcp_location"]
-        self.recognizer = f"projects/{self.project_id}/locations/{self.location}/recognizers/_"
+        self.recognizer = f"projects/{self.project_id}/locations/global/recognizers/_"
 
     def transcribe_streaming_from_chunks(
         self, audio_chunks: List[bytes], language_code: str, bias_prompt: Optional[List[str]]
@@ -29,6 +30,7 @@ class GCP_SpeechToText:
             model='latest_long',
             speech_contexts=speech_contexts,
         )
+        
         
         streaming_config = speech.StreamingRecognitionConfig(
             config=recognition_config,
@@ -54,17 +56,12 @@ class GCP_SpeechToText:
         
         return transcript.strip()
         
+    from typing import Generator
+
     def transcribe_streaming_from_chunks_v2(
         self, audio_chunks: List[bytes], language_code: str, bias_prompt: Optional[List[str]] = None
     ) -> str:
-        logger.info(f"[GCP_SpeechToTextV2: transcribe_streaming_from_chunks_v2] Called with {len(audio_chunks)} chunks")
-
-        if not audio_chunks or len(audio_chunks) == 0:
-            logger.error("[GCP_SpeechToTextV2: transcribe_streaming_from_chunks_v2] No audio chunks provided")
-            return ""
-
-        total_size = sum(len(chunk) for chunk in audio_chunks if chunk)
-        logger.info(f"[GCP_SpeechToTextV2: transcribe_streaming_from_chunks_v2] Total audio size: {total_size} bytes")
+        logger.info(f"[GCP_SpeechToTextV2] Called with {len(audio_chunks)} chunks")
 
         adaptation = None
         if bias_prompt:
@@ -72,18 +69,19 @@ class GCP_SpeechToText:
                 phrase_sets=[
                     speech_v2.PhraseSet(
                         phrases=[
-                            speech_v2.PhraseSet.Phrase(
-                                value=phrase,
-                                boost=10
-                            ) for phrase in bias_prompt
+                            speech_v2.PhraseSet.Phrase(value=phrase, boost=10)
+                            for phrase in bias_prompt
                         ]
                     )
                 ]
             )
-            logger.info(f"[GCP_SpeechToTextV2: transcribe_streaming_from_chunks_v2] Using bias prompts: {bias_prompt}")
 
         recognition_config = speech_v2.RecognitionConfig(
-            auto_decoding_config=speech_v2.AutoDetectDecodingConfig(),
+            explicit_decoding_config=speech_v2.ExplicitDecodingConfig(
+                encoding=speech_v2.ExplicitDecodingConfig.AudioEncoding.LINEAR16,
+                sample_rate_hertz=16000,
+                audio_channel_count=1
+            ),
             language_codes=[language_code],
             model="long",
             features=speech_v2.RecognitionFeatures(
@@ -96,37 +94,39 @@ class GCP_SpeechToText:
         streaming_config = speech_v2.StreamingRecognitionConfig(
             config=recognition_config
         )
-        logger.info(f"[GCP_SpeechToTextV2] Streaming config created")
 
-        logger.info(f"[GCP_SpeechToTextV2] Recognizer: {self.recognizer}")
-        def request_generator():
-            logger.info("[GCP_SpeechToTextV2] Yielding initial config request")
-            yield speech_v2.StreamingRecognizeRequest(
-                streaming_config=streaming_config,
-            )
-            for i, chunk in enumerate(audio_chunks):
-                if chunk is None or len(chunk) == 0:
-                    logger.warning(f"[GCP_SpeechToTextV2] Skipping empty chunk at index {i}")
-                    continue
-                logger.info(f"[GCP_SpeechToTextV2] Yielding audio chunk {i} with size {len(chunk)}")
-                yield speech_v2.StreamingRecognizeRequest(
-                    audio=speech_v2.RecognitionAudio(content=chunk)
-                )
+        config_request = speech_v2.StreamingRecognizeRequest(
+            recognizer=self.recognizer,
+            streaming_config=streaming_config,
+        )
+
+        def requests() -> Generator[speech_v2.StreamingRecognizeRequest, None, None]:
+            yield config_request
+            for chunk in audio_chunks:
+                for sliced_chunk in self.slice_audio_chunks(chunk):
+                    logger.info(f"[GCP_SpeechToTextV2] Yielding audio slice (≤25600 bytes)")
+                    yield speech_v2.StreamingRecognizeRequest(audio=sliced_chunk)
 
         transcript = ""
         try:
-            responses = self.client_v2.streaming_recognize(streaming_config, request_generator())
-            for response in responses:
+            responses_iterator = self.client_v2.streaming_recognize(requests=requests())
+            for response in responses_iterator:
                 for result in response.results:
-                    alt = result.alternatives[0]
-                    logger.info(
-                        f"[GCP_SpeechToTextV2] Final transcript: {alt.transcript} "
-                        f"(confidence={alt.confidence:.2f})"
-                    )
-                    transcript += alt.transcript + " "
+                    transcript += result.alternatives[0].transcript + " "
         except Exception as e:
-            logger.error(
-                f"[GCP_SpeechToTextV2: transcribe_streaming_from_chunks_v2] Error: {e}"
-            )
+            logger.error(f"[GCP_SpeechToTextV2] Error: {e}")
 
+        logger.info(f"[GCP_SpeechToTextV2] Final Transcript: {transcript.strip()}")
         return transcript.strip()
+
+    def slice_audio_chunks(self, large_chunk: bytes) -> list[bytes]:
+        SAMPLE_WIDTH = 2
+        MAX_CHUNK_SIZE = 25600
+        aligned_size = MAX_CHUNK_SIZE - (MAX_CHUNK_SIZE % SAMPLE_WIDTH)
+
+        return [
+            large_chunk[i:i + aligned_size]
+            for i in range(0, len(large_chunk), aligned_size)
+        ]
+
+
