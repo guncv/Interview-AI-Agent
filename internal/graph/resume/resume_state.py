@@ -18,14 +18,31 @@ class ResumeState(BaseModel):
     error_message: Optional[str] = None
     should_pause: Optional[bool] = False
     match_score: Optional[int] = 0
-    
+
+class Experience(BaseModel):
+    company: Optional[str] = None
+    position: Optional[str] = None
+    job_type: Optional[str] = None
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    description: Optional[str] = None
+
+class Education(BaseModel):
+    school: Optional[str] = None
+    degree: Optional[str] = None
+    field_of_study: Optional[str] = None
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    description: Optional[str] = None
+
 class PromptInfo(BaseModel):
-    full_name: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
     email: Optional[str] = None
     phone: Optional[str] = None
     location: Optional[str] = None
-    experience: Optional[list[str]] = None
-    education: Optional[list[str]] = None
+    experience: Optional[list[Experience]] = None
+    education: Optional[list[Education]] = None
     skills: Optional[list[str]] = None
     certifications: Optional[list[str]] = None
     languages: Optional[str] = None

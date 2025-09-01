@@ -57,7 +57,7 @@ class WebSocketServerCallback:
                 logger.info(f"[Websocket: handle segment end]: Segment STT not found")
                 return
             
-            final_transcript = " ".join(chunk_data_list)
+            final_transcript = "".join(chunk_data_list)
             logger.info(f"[Websocket: handle segment end] Final joined transcript: {final_transcript}")
             self.redis_client.clear_segment_stt(client.session_id, request.segment_id)
         except Exception as e:

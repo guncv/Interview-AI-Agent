@@ -101,6 +101,8 @@ session:
 
 stt:
   gcp_credentials_path: "${GCP_CREDENTIALS_PATH}"
+  gcp_project_id: "${GCP_PROJECT_ID}"
+  gcp_location: "${GCP_LOCATION}"
 
 redis:
   url: "${REDIS_URL:redis://localhost:6379/0}"
