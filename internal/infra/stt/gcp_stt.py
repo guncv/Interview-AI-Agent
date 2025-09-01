@@ -69,7 +69,7 @@ class GCP_SpeechToText:
                 phrase_sets=[
                     speech_v2.PhraseSet(
                         phrases=[
-                            speech_v2.PhraseSet.Phrase(value=phrase, boost=10)
+                            speech_v2.PhraseSet.Phrase(value=phrase, boost=20)
                             for phrase in bias_prompt
                         ]
                     )
@@ -113,6 +113,13 @@ class GCP_SpeechToText:
             for response in responses_iterator:
                 for result in response.results:
                     transcript += result.alternatives[0].transcript + " "
+                    
+                    for word_info in result.alternatives[0].words:
+                        word = word_info.word
+                        start = word_info.start_offset.total_seconds()
+                        end = word_info.end_offset.total_seconds()
+                        confidence = word_info.confidence
+                        logger.info(f"[GCP_SpeechToTextV2] Word: '{word}' | Start: {start:.2f}s | End: {end:.2f}s | Confidence: {confidence:.2f}")
         except Exception as e:
             logger.error(f"[GCP_SpeechToTextV2] Error: {e}")
 
