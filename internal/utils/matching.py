@@ -7,7 +7,7 @@ from internal.infra.db.redis import redis_client
 def merge_and_split_transcripts(
     prev_recognize: SpeechRecognize,
     merged_recognize: SpeechRecognize,
-    fuzzy_threshold: float = 7,
+    fuzzy_threshold: float = 0.7,
     session_id: str = None
 ) -> Tuple[SpeechRecognize, SpeechRecognize]:
     improved_words = []

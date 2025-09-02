@@ -19,33 +19,30 @@ class WebSocketServerCallback:
         logger.info(f"[Websocket: handle audio chunk] Called: audio data: ")
         try:
             prev_chunk = self.redis_client.get_prev_segment_chunk(client.session_id, audio_message.segment_id)
-            
-            combined_chunks: List[bytes] = []
-            if prev_chunk:
-                combined_chunks.append(prev_chunk)
-            combined_chunks.append(audio_message.audio_data)
             bias_prompt = self.redis_client.get_session_bias_prompt(client.session_id)
-            
-            logger.info(f"[Websocket: handle audio chunk] Combined chunks length: {len(combined_chunks)}")
-            full_transcript: SpeechRecognize = self.stt_client.transcribe_streaming_from_chunks_v2(combined_chunks, client.language, bias_prompt)
-            logger.info(f"[Websocket: handle audio chunk] Full transcript: {full_transcript}")
-            
-            prev_transcript = self.redis_client.get_prev_segment_stt(client.session_id, audio_message.segment_id)
 
-            if prev_transcript:
-                logger.info(f"[Websocket: handle audio chunk] Prev transcript found: {prev_transcript}")
-                improved_prev, curr_only = merge_and_split_transcripts(prev_transcript, full_transcript, session_id=client.session_id)
-                logger.info(f"[Websocket: handle audio chunk] Curr transcript: {curr_only}")
-                self.redis_client.save_segment_stt(client.session_id, audio_message.segment_id, improved_prev.transcript)
-                self.redis_client.save_prev_segment_stt(client.session_id, audio_message.segment_id, curr_only)
+            prev_recognize = None
+            if prev_chunk:
+                prev_cache = self.redis_client.get_prev_segment_stt(client.session_id, audio_message.segment_id)
+                prev_recognize, curr_recognize = self.stt_client.transcribe_streaming_with_context(
+                    prev_chunk=prev_chunk,
+                    curr_chunk=audio_message.audio_data,
+                    language_code=client.language,
+                    bias_prompt=bias_prompt
+                )
+                self.redis_client.save_prev_segment_stt(client.session_id, audio_message.segment_id, curr_recognize)
+                logger.info(f"[Websocket: handle audio chunk] Prev cache found: '{prev_cache}'")
+                logger.info(f"[Websocket: handle audio chunk] Prev transcript: '{prev_recognize}'")
+                logger.info(f"[Websocket: handle audio chunk] Curr transcript: '{curr_recognize}'")
             else:
-                logger.info(f"[Websocket: handle audio chunk] All transcripts not found")
-                logger.info(f"[Websocket: handle audio chunk] Curr transcript: {full_transcript}")
-                self.redis_client.save_prev_segment_stt(client.session_id, audio_message.segment_id, full_transcript)
-
+                curr_recognize: SpeechRecognize = self.stt_client.transcribe_single_chunk(audio_message.audio_data, client.language, bias_prompt)
+                self.redis_client.save_prev_segment_stt(client.session_id, audio_message.segment_id, curr_recognize)
+            logger.info(f"[Websocket: handle audio chunk] Full transcript: '{curr_recognize}'")
+            
             self.redis_client.save_prev_segment_chunk(client.session_id, audio_message.segment_id, audio_message.audio_data)
-
-            logger.info(f"[Websocket: handle audio chunk] Final Transcript Saved: {full_transcript}")
+            if prev_recognize:
+                self.redis_client.save_segment_stt(client.session_id, audio_message.segment_id, prev_recognize.transcript)
+                logger.info(f"[Websocket: handle audio chunk] Prev transcript saved on session and segment id: '{client.session_id}_{audio_message.segment_id}'")
 
         except Exception as e:
             logger.error(f"[Websocket: handle audio chunk] Error: {e}")
@@ -59,8 +56,12 @@ class WebSocketServerCallback:
                 logger.info(f"[Websocket: handle segment end]: Segment STT not found")
                 return
             
+            logger.info(f"[Websocket: handle segment end]: Getting segment STT from session and segment id: '{client.session_id}_{request.segment_id}'")
             curr_transcript = self.redis_client.get_segment_stt(client.session_id, request.segment_id)
-            curr_transcript.append(prev_transcript.transcript)
+            if curr_transcript:
+                curr_transcript.append(prev_transcript.transcript)
+            else:
+                curr_transcript = [prev_transcript.transcript]
             final_transcript = " ".join(curr_transcript)
             logger.info(f"[Websocket: handle segment end] Final joined transcript: {final_transcript}")
             self.redis_client.clear_segment_stt(client.session_id, request.segment_id)
