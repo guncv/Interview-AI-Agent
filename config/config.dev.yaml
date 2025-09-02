@@ -103,6 +103,7 @@ stt:
   gcp_credentials_path: "${GCP_CREDENTIALS_PATH}"
   gcp_project_id: "${GCP_PROJECT_ID}"
   gcp_location: "${GCP_LOCATION}"
+  whisper_api_key: "${WHISPER_API_KEY}"
 
 redis:
   url: "${REDIS_URL:redis://localhost:6379/0}"
