@@ -6,6 +6,7 @@ from typing import List
 from internal.utils.matching import merge_and_split_transcripts
 from internal.domain.models.speech_recognize import SpeechRecognize
 from internal.infra.stt.whisper_stt import WhisperSpeechToText
+from internal.llm.post_stt_corrector import correct_transcript
 
 class WebSocketServerCallback:
     def __init__(self):
@@ -55,7 +56,9 @@ class WebSocketServerCallback:
         try:
             curr_recognize = self.whisper_client.transcribe_audio(audio_message.audio_data)
             logger.info(f"[Websocket: handle audio chunk] Curr transcript: '{curr_recognize}'")
-            self.redis_client.save_segment_stt(client.session_id, audio_message.segment_id, curr_recognize.transcript)
+            bias_prompt = self.redis_client.get_session_bias_prompt(client.session_id)
+            curr_recognize = correct_transcript(curr_recognize.transcript, bias_prompt)
+            self.redis_client.save_segment_stt(client.session_id, audio_message.segment_id, curr_recognize)
 
         except Exception as e:
             logger.error(f"[Websocket: handle audio chunk] Error: {e}")

@@ -14,14 +14,15 @@ class WhisperSpeechToText:
     def __init__(self):
         self.api_key = config["stt"]["whisper_api_key"]
         self.client = OpenAI(api_key=self.api_key)
+        self.model = "whisper-1"
         
     def _wrap_wav_bytes(self, audio_bytes: bytes) -> io.BytesIO:
-        logger.info(f"[Whisper STT] Wrapping WAV bytes: Called audio bytes ", audio_bytes)
+        logger.info(f"[Whisper STT] Wrapping WAV bytes: Called")
         buffer = io.BytesIO()
         with wave.open(buffer, 'wb') as wav_file:
-            wav_file.setnchannels(1)         
-            wav_file.setsampwidth(2)         
-            wav_file.setframerate(16000)     
+            wav_file.setnchannels(1)
+            wav_file.setsampwidth(2)
+            wav_file.setframerate(16000)
             wav_file.writeframes(audio_bytes)
         buffer.seek(0)
         return buffer
@@ -33,12 +34,13 @@ class WhisperSpeechToText:
 
         response = self.client.audio.transcriptions.create(
             file=audio_file,
-            model="whisper-1",
+            model=self.model,
             response_format="verbose_json",
             language=language,
             timestamp_granularities=["word"]
         )
-
+        
+        logger.info(f"[Whisper STT] Response: {response}")
         transcript = response.text.strip()
         words: List[Word] = []
 
