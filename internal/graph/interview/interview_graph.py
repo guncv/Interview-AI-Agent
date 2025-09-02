@@ -8,10 +8,11 @@ from langchain_core.runnables import RunnableWithMessageHistory
 from internal.infra.db.redis import redis_client
 from internal.llm.state_store import clearMemory
 from langchain_core.runnables import RunnableLambda
+from internal.llm.loader import loadLLM
 
 class InterviewGraph:
-    def __init__(self, llm):
-        self.llm = llm
+    def __init__(self):
+        self.llm = loadLLM("interview")
         self.graph = self._build_graph()
     
     def _build_graph(self):
