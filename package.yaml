@@ -4,6 +4,7 @@ channels:
 dependencies:
   - python=3.10
   - pip>=23
+  - openjdk=17
   - fastapi>=0.111
   - uvicorn
   - pydantic>=2.7,<3
@@ -45,3 +46,4 @@ dependencies:
       - websockets
       - PyJWT
       - numpy
+      - language-tool-python>=2.8.0

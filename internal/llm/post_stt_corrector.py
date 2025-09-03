@@ -28,7 +28,7 @@ class TranscriptCorrector:
         - Keep technical terms and proper nouns intact
         - Remove filler words only if they don't affect meaning
         - Preserve question marks and exclamation points appropriately
-        - Don't upcase the first letter of the transcript except for there is upper case in the original transcript        
+        - Don't upcase the first letter of the transcript except for there is upper case in the original transcript
         - Don't return " in the transcript
 
         {bias_instructions}
@@ -68,6 +68,7 @@ class TranscriptCorrector:
                 {bias_prompt}
 
                 Apply these bias instructions while maintaining natural language flow.
+                This biasprompt is to boost the accuracy of the transcript.
                 """
 
             chain_input = {

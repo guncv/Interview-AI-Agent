@@ -50,9 +50,16 @@ class WhisperSpeechToText:
                     word=w.word.strip(),
                     start=w.start,
                     end=w.end,
-                    confidence=1.0  
+                    confidence=1.0
                 ))
 
+        transcript = self._clean_transcript(transcript)
         logger.info(f"[Whisper STT] Full Transcript: {transcript.strip()}")
         logger.info(f"[Whisper STT] Words: {words}")
         return SpeechRecognize(transcript=transcript, words=words)
+    
+    def _clean_transcript(self, text: str) -> str:
+        cleaned = text.strip()
+        if cleaned.endswith("..."):
+            cleaned = cleaned[:-3].rstrip()
+        return cleaned
