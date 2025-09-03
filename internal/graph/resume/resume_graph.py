@@ -8,10 +8,11 @@ from internal.domain.models.interview import RequirementsRequest
 import fitz
 from io import BytesIO
 from internal.llm.state_store import clearMemory
+from internal.llm.loader import loadLLM
 
 class ResumeGraph:
-    def __init__(self, llm):
-        self.llm = llm
+    def __init__(self):
+        self.llm = loadLLM("extract_resume")
         self.graph = self._build_graph()
     
     def _build_graph(self):

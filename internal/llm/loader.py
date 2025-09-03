@@ -4,38 +4,85 @@ from langchain_community.chat_message_histories import ChatMessageHistory
 from internal.infra.log.logger import logger
 from internal.llm.state_store import getMemory
 
-def loadLLM():
-    if config["llm"]["provider"] == "openai":
-        from langchain_openai import ChatOpenAI
-        logger.info(f"[loadLLM: Called]: {config['llm']['model']}")
-        return ChatOpenAI(
-            openai_api_key=config["llm"]["api_key"],
-            model=config["llm"]["model"],
-            temperature=config["llm"]["temperature"],
-            max_tokens=config["llm"]["max_tokens"],
-        )
-    elif config["llm"]["provider"] == "deepseek":
-        from langchain_deepseek import ChatDeepSeek
-        logger.info(f"[loadLLM: Called]: {config['llm']['model']}")
-        return ChatDeepSeek(
-            api_key=config["llm"]["api_key"],
-            model=config["llm"]["model"],
-            temperature=config["llm"]["temperature"],
-            max_tokens=config["llm"]["max_tokens"],
-        )
-    elif config["llm"]["provider"] == "anthropic":
-        from langchain_anthropic import ChatAnthropic
-        logger.info(f"[loadLLM: Called]: {config['llm']['model']}")
-        return ChatAnthropic(
-            anthropic_api_key=config["llm"]["api_key"],
-            model=config["llm"]["model"],
-            temperature=config["llm"]["temperature"],
-            max_tokens=config["llm"]["max_tokens"],
-        )
-    else:
-        raise ValueError("Unsupported LLM provider")
+class LLM:
+    def __init__(self):
+        self.model = None
+        self.provider = None
+        self.temperature = None
+        self.api_key = None
 
-llm = loadLLM()
+    def loadLLM(self, type: str):
+        self.model = config[type]["model"]
+        self.provider = config[type]["api_provider"]
+        self.temperature = config[type]["temperature"]
+        self.api_key = config[type]["api_key"]
+
+        if type == "transcribe":
+            if self.provider == "openai":
+                from langchain_openai import ChatOpenAI
+                logger.info(f"[loadLLM: Called]: {self.model}")
+                return ChatOpenAI(
+                    openai_api_key=self.api_key,
+                    model=self.model,
+                    temperature=self.temperature,
+                )
+            elif self.provider == "deepseek":
+                from langchain_deepseek import ChatDeepSeek
+                logger.info(f"[loadLLM: Called]: {self.model}")
+                return ChatDeepSeek(
+                    api_key=self.api_key,
+                    model=self.model,
+                    temperature=self.temperature,
+                )
+            elif self.provider == "anthropic":
+                from langchain_anthropic import ChatAnthropic
+                logger.info(f"[loadLLM: Called]: {self.model}")
+                return ChatAnthropic(
+                    anthropic_api_key=self.api_key,
+                    model=self.model,
+                    temperature=self.temperature,
+                )
+        elif type == "extract_resume":
+            if self.provider == "openai":
+                from langchain_openai import ChatOpenAI
+                logger.info(f"[loadLLM: Called]: {self.model}")
+                return ChatOpenAI(
+                    openai_api_key=self.api_key,
+                    model=self.model,
+                    temperature=self.temperature,
+                )
+        elif type == "interview":
+            if self.provider == "openai":
+                from langchain_openai import ChatOpenAI
+                logger.info(f"[loadLLM: Called]: {self.model}")
+                return ChatOpenAI(
+                    openai_api_key=self.api_key,
+                    model=self.model,
+                    temperature=self.temperature,
+                )
+            elif self.provider == "deepseek":
+                from langchain_deepseek import ChatDeepSeek
+                logger.info(f"[loadLLM: Called]: {self.model}")
+                return ChatDeepSeek(
+                    api_key=self.api_key,
+                    model=self.model,
+                    temperature=self.temperature,
+                )
+            elif self.provider == "anthropic":
+                from langchain_anthropic import ChatAnthropic
+                logger.info(f"[loadLLM: Called]: {self.model}")
+                return ChatAnthropic(
+                    anthropic_api_key=self.api_key,
+                    model=self.model,
+                    temperature=self.temperature,
+                )
+        else:
+            raise ValueError("Unsupported LLM provider")
+
+llm = LLM()
+def loadLLM(type: str):
+    logger.info(f"[loadLLM: Called]: {type}")
+    return llm.loadLLM(type)
 
 prompt = ChatPromptTemplate.from_messages([
     ("system", "{task_prompt}"),

@@ -3,15 +3,14 @@ from internal.utils.exception import InterviewSimulationException
 from internal.domain.exception import InterviewSimulationErrorCodes
 from internal.infra.log.logger import logger
 from internal.graph.interview.interview_graph import InterviewGraph
-from internal.llm.loader import llm
 from internal.graph.resume.resume_graph import ResumeGraph
 from internal.infra.db.redis import redis_client
 from typing import Optional
 
 class InterviewService:
     def __init__(self):
-        self.interview_graph = InterviewGraph(llm)
-        self.resume_graph = ResumeGraph(llm)
+        self.interview_graph = InterviewGraph()
+        self.resume_graph = ResumeGraph()
         self.redis_client = redis_client
 
     async def health_check(self):

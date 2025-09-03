@@ -8,6 +8,11 @@ RUN micromamba env create --yes --file /tmp/freeze_env.yaml && micromamba clean 
 ARG MAMBA_DOCKERFILE_ACTIVATE=1
 ENV MAMBA_ACTIVATE_ENVIRONMENT=interview-sim-server
 
+ENV JAVA_HOME=/opt/conda/envs/interview-sim-server
+ENV PATH="$JAVA_HOME/bin:$PATH"
+
+RUN java -version && echo "Java Home: $JAVA_HOME"
+
 COPY . .
 COPY gunicorn.conf.py .
 

@@ -4,14 +4,13 @@ channels:
 dependencies:
   - python=3.10
   - pip>=23
+  - openjdk=17
   - fastapi>=0.111
   - uvicorn
   - pydantic>=2.7,<3
   - httpx
   - gunicorn
   - google-cloud-speech=2.21.0
-  - libgcc-ng
-  - libstdcxx-ng
   - pip:
       - openai
       - python-dotenv
@@ -46,3 +45,5 @@ dependencies:
       - pymupdf
       - websockets
       - PyJWT
+      - numpy
+      - language-tool-python>=2.8.0

@@ -1,14 +1,26 @@
-llm:
-  provider: openai
+transcribe:
+  model: gpt-3.5-turbo
+  api_provider: openai
+  temperature: 0.3
+  api_key: ${TRANSCRIBE_OPENAI_API_KEY}
+
+extract_resume:
   model: gpt-4o-mini
+  api_provider: openai
   temperature: 0.5
-  max_tokens: 1024
-  api_key: ${LLM_OPENAI_API_KEY}
+  api_key: ${EXTRACT_RESUME_OPENAI_API_KEY}
+
+interview:
+  model: gpt-4o-mini
+  api_provider: openai
+  temperature: 0.5
+  api_key: ${EXTRACT_RESUME_OPENAI_API_KEY}
 
 memory:
   provider: qdrant
   host: "localhost"
   port: 6333
+  api_key: ${LLM_OPENAI_API_KEY}
 
 tools:
   enabled: true
@@ -51,7 +63,6 @@ logging:
   model: gpt-4o-mini
   temperature: 0.5
   max_tokens: 1024
-  api_key: ${LLM_OPENAI_API_KEY}
 
 memory:
   provider: qdrant
@@ -103,6 +114,7 @@ stt:
   gcp_credentials_path: "${GCP_CREDENTIALS_PATH}"
   gcp_project_id: "${GCP_PROJECT_ID}"
   gcp_location: "${GCP_LOCATION}"
+  whisper_api_key: "${WHISPER_API_KEY}"
 
 redis:
   url: "${REDIS_URL:redis://localhost:6379/0}"

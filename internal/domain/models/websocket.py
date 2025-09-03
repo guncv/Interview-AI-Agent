@@ -8,7 +8,6 @@ class WebSocketClient:
     websocket: WebSocket
     user_id: str
     session_id: str
-    language: str
     is_connected: bool = True
     current_segment_id: Optional[str] = None
 
