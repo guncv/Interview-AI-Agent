@@ -1,7 +1,4 @@
-import tempfile
-import os
 import io
-import struct
 import wave
 from typing import Optional, List
 from internal.infra.log.logger import logger
