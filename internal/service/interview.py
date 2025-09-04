@@ -2,8 +2,8 @@ from internal.domain.models.interview import HealthCheckResponse, InterviewReque
 from internal.shared.exception import InterviewSimulationException
 from internal.domain.exception import InterviewSimulationErrorCodes
 from internal.adapters.log.logger import logger
-from internal.service.interview_graph_service import InterviewGraph
-from internal.service.resume_graph_service import ResumeGraph
+from internal.service.interview_graph import InterviewGraph
+from internal.service.resume_graph import ResumeGraph
 from internal.adapters.db.redis import redis_client
 from typing import Optional
 

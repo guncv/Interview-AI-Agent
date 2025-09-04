@@ -18,7 +18,6 @@ class InterviewGraph:
     def _build_graph(self):
         wf = StateGraph(InterviewState)
 
-        # Use node ids as strings and the (node, action) signature
         wf.add_node(InterviewNode.ROUTER.value, self._router_node)
         wf.add_node(InterviewNode.ASK_QUESTION.value, self._ask_question_node)
         wf.add_node(InterviewNode.PARSE_ANSWER.value, self._parse_answer_node)
@@ -28,7 +27,6 @@ class InterviewGraph:
 
         wf.set_entry_point(InterviewNode.ROUTER.value)
 
-        # Route from router node based on current_step -> node id
         wf.add_conditional_edges(
             InterviewNode.ROUTER.value,
             self._route_from_state,
@@ -88,13 +86,11 @@ class InterviewGraph:
         })
 
     def _parse_answer_node(self, state: InterviewState) -> InterviewState:
-        # Placeholder: echo back and move to feedback
         return state.model_copy(update={
             "current_step": InterviewStep.GIVE_FEEDBACK,
         })
 
     def _give_feedback_node(self, state: InterviewState) -> InterviewState:
-        # Placeholder: mark finished and move to end
         return state.model_copy(update={
             "message": state.message or "",
             "current_step": InterviewStep.END_INTERVIEW,

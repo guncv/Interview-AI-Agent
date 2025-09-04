@@ -4,9 +4,9 @@ from google.cloud.speech_v2.types import cloud_speech
 from internal.adapters.log.logger import logger
 from internal.config.config import nested_config as config
 from internal.domain.models.speech_recognize import SpeechRecognize, Word
+from internal.domain.ports.stt_port import STTPort
 
-
-class GCP_SpeechToText:
+class GCP_SpeechToText(STTPort):
     def __init__(self):
         self.client_v2 = speech_v2.SpeechClient.from_service_account_file(
             config["stt"]["gcp_credentials_path"]
@@ -15,7 +15,7 @@ class GCP_SpeechToText:
         self.location = config["stt"]["gcp_location"]
         self.recognizer = f"projects/{self.project_id}/locations/global/recognizers/_"
 
-    def transcribe_streaming_with_context(
+    async def transcribe(
         self,
         prev_chunk: bytes,
         curr_chunk: bytes,
