@@ -1,23 +1,22 @@
-import os, json
+import json
 from typing import Optional, Dict, Any, Type, TypeVar, Callable, List
 from redis import Redis
-from internal.domain.models.interview_state import InterviewState
+from internal.domain.models.interview import InterviewState
 from enum import Enum
-from internal.domain.models.resume_state import ResumeState
+from internal.domain.models.resume import ResumeState
 from internal.config.config import nested_config as config
-from internal.adapters.log.logger import logger
 from internal.domain.models.speech_recognize import SpeechRecognize, Word
 import dataclasses
-
+from internal.domain.models.redis import RedisKeys
 T = TypeVar('T')
 
-STATE_TTL_SECONDS = int(os.getenv("STATE_TTL_SECONDS", "900"))
-STATE_PREFIX = os.getenv("REDIS_STATE_PREFIX", "interview-sim:state")
-LOCK_PREFIX = os.getenv("REDIS_LOCK_PREFIX", "interview-sim:lock")
-SEGMENT_STT_PREFIX = os.getenv("REDIS_SEGMENT_STT_PREFIX", "interview-sim:segment_stt")
-PREV_SEGMENT_CHUNK_PREFIX = os.getenv("REDIS_PREV_SEGMENT_CHUNK_PREFIX", "interview-sim:prev_segment_chunk")
-BIAS_PROMPT_PREFIX = os.getenv("REDIS_BIAS_PROMPT_PREFIX", "interview-sim:bias_prompt")
-PREV_SEGMENT_STT_PREFIX = os.getenv("REDIS_PREV_SEGMENT_STT_PREFIX", "interview-sim:prev_segment_stt")
+STATE_TTL_SECONDS = RedisKeys.STATE_TTL_SECONDS.value
+STATE_PREFIX = RedisKeys.STATE_PREFIX.value
+LOCK_PREFIX = RedisKeys.LOCK_PREFIX.value
+SEGMENT_STT_PREFIX = RedisKeys.SEGMENT_STT_PREFIX.value
+PREV_SEGMENT_CHUNK_PREFIX = RedisKeys.PREV_SEGMENT_CHUNK_PREFIX.value
+BIAS_PROMPT_PREFIX = RedisKeys.BIAS_PROMPT_PREFIX.value
+PREV_SEGMENT_STT_PREFIX = RedisKeys.PREV_SEGMENT_STT_PREFIX.value
 
 class RedisClient:
     def __init__(self):
