@@ -1,6 +1,5 @@
 from pydantic import BaseModel
 from internal.domain.models.resume import PromptInfo
-from internal.domain.models.interview import InterviewStep
 from typing import Optional
 from enum import Enum
 
@@ -26,20 +25,6 @@ class RequirementsRequest(BaseModel):
     
 class RequirementsResponse(BaseModel):
     parsed_json: PromptInfo
-    
-class InterviewState(BaseModel):
-    session_id: str
-    user_input: str
-    current_step: InterviewStep
-    message: Optional[str] = None
-    role: Optional[str] = None
-    question: Optional[str] = None
-    feedback: Optional[str] = None
-    score: Optional[float] = None
-    match_score: Optional[float] = None
-    is_finished: bool = False
-    should_pause: bool = True
-    error_message: Optional[str] = None
 
 class InterviewStep(Enum):
     ROLE_SELECTION = 1
@@ -59,3 +44,17 @@ class InterviewNode(Enum):
     
 class AskQuestionRes(BaseModel):
     message: str
+    
+class InterviewState(BaseModel):
+    session_id: str
+    user_input: str
+    current_step: InterviewStep
+    message: Optional[str] = None
+    role: Optional[str] = None
+    question: Optional[str] = None
+    feedback: Optional[str] = None
+    score: Optional[float] = None
+    match_score: Optional[float] = None
+    is_finished: bool = False
+    should_pause: bool = True
+    error_message: Optional[str] = None

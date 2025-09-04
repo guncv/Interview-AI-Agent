@@ -1,6 +1,6 @@
 from internal.adapters.log.logger import logger
-from internal.domain.models.interview_step import InterviewStep, InterviewNode
-from internal.domain.models.interview_state import InterviewState, AskQuestionRes
+from internal.domain.models.interview import InterviewStep, InterviewNode
+from internal.domain.models.interview import InterviewState, AskQuestionRes
 from internal.adapters.llm.prompt_builder import ASK_QUESTION_PROMPT
 from langgraph.graph import StateGraph, END
 from internal.adapters.llm.loader import getChatHistory

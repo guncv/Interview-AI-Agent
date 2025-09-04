@@ -1,9 +1,9 @@
 from internal.adapters.log.logger import logger
-from internal.domain.models.resume_step import ResumeStep, ResumeNode
+from internal.domain.models.resume import ResumeStep, ResumeNode
 from internal.service.prompts.resume_prompt import EXTRACT_INFO_PROMPT
 from langgraph.graph import StateGraph, END
 from langchain_core.runnables import RunnableLambda
-from internal.domain.models.resume_state import ResumeState, PromptInfo
+from internal.domain.models.resume import ResumeState, PromptInfo
 from internal.domain.models.interview import RequirementsRequest
 import fitz
 from io import BytesIO
