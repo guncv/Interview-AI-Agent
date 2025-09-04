@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from internal.api.v1 import interview, websocket
+from internal.api import interview, websocket
 
 api_router_v1 = APIRouter()
 

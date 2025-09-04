@@ -1,11 +1,10 @@
 from fastapi import APIRouter, UploadFile, File, Form
-from internal.utils.exception import InterviewSimulationException
+from internal.shared.exception import InterviewSimulationException
 from internal.domain.exception import InterviewSimulationErrorCodes
-from internal.infra.log.logger import logger
-from io import BytesIO
+from internal.adapters.log.logger import logger
 from internal.service.interview import InterviewService
 from internal.domain.models.interview import InterviewRequest
-from internal.domain.models.interview import RequirementsRequest, RequirementsResponse
+from internal.domain.models.interview import RequirementsRequest
 
 router = APIRouter()
 

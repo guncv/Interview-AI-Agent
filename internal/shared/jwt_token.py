@@ -1,8 +1,8 @@
 import jwt
 from internal.config.config import nested_config as config
 from internal.domain.exception import InterviewSimulationErrorCodes
-from internal.utils.exception import InterviewSimulationException
-from internal.infra.log.logger import logger
+from internal.shared.exception import InterviewSimulationException
+from internal.adapters.log.logger import logger
 
 class JWTToken:
     def __init__(self, algorithm: str = "HS256"):

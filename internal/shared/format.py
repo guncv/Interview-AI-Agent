@@ -1,6 +1,6 @@
 import language_tool_python
 import time
-from internal.infra.log.logger import logger
+from internal.adapters.log.logger import logger
 
 try:
     logger.info("[format] Initializing local LanguageTool server...")

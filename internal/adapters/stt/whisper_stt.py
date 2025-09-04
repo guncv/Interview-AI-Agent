@@ -1,7 +1,7 @@
 import io
 import wave
 from typing import Optional, List
-from internal.infra.log.logger import logger
+from internal.adapters.log.logger import logger
 from internal.domain.models.speech_recognize import SpeechRecognize, Word
 from openai import OpenAI
 from internal.config.config import nested_config as config

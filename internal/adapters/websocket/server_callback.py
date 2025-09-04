@@ -1,8 +1,8 @@
-from internal.infra.log.logger import logger
+from internal.adapters.log.logger import logger
 from internal.domain.models.websocket import AudioChunkMessage, WebSocketClient, SegmentStartMessage, SegmentEndMessage
-from internal.infra.db.redis import redis_client
-from internal.infra.stt.gcp_stt import GCP_SpeechToText
-from internal.infra.stt.whisper_stt import WhisperSpeechToText
+from internal.adapters.db.redis import redis_client
+from internal.adapters.stt.gcp_stt import GCP_SpeechToText
+from internal.adapters.stt.whisper_stt import WhisperSpeechToText
 import json
 
 class WebSocketServerCallback:

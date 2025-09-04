@@ -1,14 +1,14 @@
-from internal.infra.log.logger import logger
-from internal.graph.interview.interview_step import InterviewStep, InterviewNode
-from internal.graph.interview.interview_state import InterviewState, AskQuestionRes
-from internal.llm.prompt_builder import ASK_QUESTION_PROMPT
+from internal.adapters.log.logger import logger
+from internal.domain.models.interview_step import InterviewStep, InterviewNode
+from internal.domain.models.interview_state import InterviewState, AskQuestionRes
+from internal.adapters.llm.prompt_builder import ASK_QUESTION_PROMPT
 from langgraph.graph import StateGraph, END
-from internal.llm.loader import getChatHistory
+from internal.adapters.llm.loader import getChatHistory
 from langchain_core.runnables import RunnableWithMessageHistory
-from internal.infra.db.redis import redis_client
-from internal.llm.state_store import clearMemory
+from internal.adapters.db.redis import redis_client
+from internal.adapters.llm.state_store import clearMemory
 from langchain_core.runnables import RunnableLambda
-from internal.llm.loader import loadLLM
+from internal.adapters.llm.loader import loadLLM
 
 class InterviewGraph:
     def __init__(self):

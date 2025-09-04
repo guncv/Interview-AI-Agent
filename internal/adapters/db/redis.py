@@ -1,11 +1,11 @@
 import os, json
 from typing import Optional, Dict, Any, Type, TypeVar, Callable, List
 from redis import Redis
-from internal.graph.interview.interview_state import InterviewState
+from internal.domain.models.interview_state import InterviewState
 from enum import Enum
-from internal.graph.resume.resume_state import ResumeState
+from internal.domain.models.resume_state import ResumeState
 from internal.config.config import nested_config as config
-from internal.infra.log.logger import logger
+from internal.adapters.log.logger import logger
 from internal.domain.models.speech_recognize import SpeechRecognize, Word
 import dataclasses
 

@@ -7,10 +7,10 @@ from typing import Dict, Optional, Set
 from dataclasses import dataclass, field
 from enum import Enum
 from fastapi import WebSocket, WebSocketDisconnect
-from internal.infra.log.logger import logger
+from internal.adapters.log.logger import logger
 from internal.domain.enum import WebSocketMessageType, WebSocketErrorCode
 from internal.domain.models.websocket import ErrorMessage, AudioChunkMessage, WebSocketClient, SegmentStartMessage, SegmentEndMessage
-from internal.infra.websocket.server_callback import WebSocketServerCallback
+from internal.adapters.websocket.server_callback import WebSocketServerCallback
 
 class WebSocketServer:
     def __init__(self):

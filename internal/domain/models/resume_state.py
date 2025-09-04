@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from typing import Optional
-from internal.graph.resume.resume_step import ResumeStep
+from internal.domain.models.resume_step import ResumeStep
     
 class ResumeState(BaseModel):
     session_id: str

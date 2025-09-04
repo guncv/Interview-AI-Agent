@@ -1,7 +1,7 @@
 from fastapi import APIRouter, WebSocket, Depends, HTTPException, Query
-from internal.infra.websocket.server import ws_server
-from internal.infra.log.logger import logger
-from internal.utils.jwt_token import JWTToken
+from internal.adapters.websocket.server import ws_server
+from internal.adapters.log.logger import logger
+from internal.shared.jwt_token import JWTToken
 
 router = APIRouter()
 jwt_token = JWTToken()

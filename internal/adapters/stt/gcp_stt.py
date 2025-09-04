@@ -1,7 +1,7 @@
 from typing import List, Optional, Generator, Tuple
 from google.cloud import speech_v2
 from google.cloud.speech_v2.types import cloud_speech
-from internal.infra.log.logger import logger
+from internal.adapters.log.logger import logger
 from internal.config.config import nested_config as config
 from internal.domain.models.speech_recognize import SpeechRecognize, Word
 

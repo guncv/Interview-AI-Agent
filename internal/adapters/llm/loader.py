@@ -1,8 +1,8 @@
 from internal.config.config import nested_config as config
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_community.chat_message_histories import ChatMessageHistory
-from internal.infra.log.logger import logger
-from internal.llm.state_store import getMemory
+from internal.adapters.log.logger import logger
+from internal.adapters.llm.state_store import getMemory
 
 class LLM:
     def __init__(self):

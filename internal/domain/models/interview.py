@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from internal.graph.resume.resume_state import PromptInfo
+from internal.domain.models.resume_state import PromptInfo
 
 class HealthCheckResponse(BaseModel):
     message: str
