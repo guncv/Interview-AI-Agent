@@ -1,11 +1,7 @@
 import asyncio
 import json
-import time
-import uuid
 import struct
-from typing import Dict, Optional, Set
-from dataclasses import dataclass, field
-from enum import Enum
+from typing import Dict, Set
 from fastapi import WebSocket, WebSocketDisconnect
 from internal.adapters.log.logger import logger
 from internal.domain.enum import WebSocketMessageType, WebSocketErrorCode

@@ -5,6 +5,7 @@ from internal.config.config import api_config
 from fastapi.exceptions import RequestValidationError, ResponseValidationError
 from prometheus_fastapi_instrumentator import Instrumentator
 from internal.shared.except_handler import validation_exception_handler, response_validation_exception_handler
+from internal.shared.exception import InterviewSimulationException
 from internal.api.routes.route import api_router_v1
 from internal.adapters.log.logger import logger
 
@@ -17,7 +18,8 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8080"],
+    allow_origins=["*"],  # Allow all origins for development
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -26,6 +28,7 @@ app.include_router(api_router_v1, prefix=api_config.get("API_PREFIX", "/api/v1")
 
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
 app.add_exception_handler(ResponseValidationError, response_validation_exception_handler)
+app.add_exception_handler(InterviewSimulationException, lambda request, exc: exc.convert_to_JSONResponse())
 
 instrumentator = Instrumentator(
     should_group_status_codes = False,
