@@ -49,12 +49,20 @@ model:
   api_key: "${MODEL_API_KEY}"
   name: "${MODEL_NAME:gpt-4o-mini}"
 
-pinecone:
-  api_key: "${PINECONE_API_KEY}"
-  environment: "${PINECONE_ENV:us-east-1-aws}"
-  index_name: "${PINECONE_IDX_NAME:interview-sim-dev}"
-  dimensions: "${PINECONE_DIMS:1536}"
-  metric: "${PINECONE_METRIC:cosine}"
+vector_db:
+  kind: "${VECTOR_DB:chroma}"
+  embedder_api_key: "${VECTOR_DB_EMBEDDER_API_KEY}"
+  chroma:
+    collection_name: "${VECTOR_DB_COLLECTION:interview_data}"
+    persist_directory: "${VECTOR_DB_PERSIST_DIR:./.chroma}"
+  pinecone:
+    api_key: "${PINECONE_API_KEY}"
+    environment: "${PINECONE_ENV:us-east-1-aws}"
+    index_name: "${PINECONE_IDX_NAME:interview-sim-dev}"
+    dimensions: "${PINECONE_DIMS:1536}"
+    metric: "${PINECONE_METRIC:cosine}"
+    cloud: "${PINECONE_CLOUD:aws}"
+    region: "${PINECONE_REGION:us-east-1}"
   
 logging:
   level: "DEBUG"
@@ -95,13 +103,6 @@ backend:
 model:
   api_key: "${MODEL_API_KEY}"
   name: "${MODEL_NAME:gpt-4o-mini}"
-
-pinecone:
-  api_key: "${PINECONE_API_KEY}"
-  environment: "${PINECONE_ENV:us-east-1-aws}"
-  index_name: "${PINECONE_IDX_NAME:interview-sim-dev}"
-  dimensions: "${PINECONE_DIMS:1536}"
-  metric: "${PINECONE_METRIC:cosine}"
 
 logging:
   level: "DEBUG"
