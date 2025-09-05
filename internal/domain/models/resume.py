@@ -1,8 +1,9 @@
 from pydantic import BaseModel
 from typing import Optional
 from enum import Enum
- 
+
 class ResumeStep(Enum):
+    INGEST_RESUME = 1
     PARSE_RESUME = 2
     EXTRACT_INFO = 3
     ERROR = -1
@@ -11,6 +12,7 @@ class ResumeStep(Enum):
     
 class ResumeNode(Enum):
     ROUTER = "router"
+    INGEST_RESUME = "ingest_resume"
     PARSE_RESUME = "parse_resume"
     EXTRACT_INFO = "extract_info"
     TIMEOUT_RETRY = "timeout_retry"

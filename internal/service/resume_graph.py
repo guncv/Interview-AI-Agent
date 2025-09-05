@@ -9,6 +9,7 @@ import fitz
 from io import BytesIO
 from internal.adapters.llm.state_store import clearMemory
 from internal.adapters.llm.loader import loadLLM
+from internal.adapters.vector_db.ingestion_loader import ingest_document
 
 class ResumeGraph:
     def __init__(self):
@@ -19,6 +20,7 @@ class ResumeGraph:
         wf = StateGraph(ResumeState)
 
         wf.add_node(ResumeNode.ROUTER.value, self._router_node)
+        wf.add_node(ResumeNode.INGEST_RESUME.value, self._ingest_resume_node)
         wf.add_node(ResumeNode.PARSE_RESUME.value, self._parse_resume_node)
         wf.add_node(ResumeNode.EXTRACT_INFO.value, self._extract_info_node)
         wf.add_node(ResumeNode.TIMEOUT_RETRY.value, self._timeout_retry_node)
@@ -31,6 +33,7 @@ class ResumeGraph:
             ResumeNode.ROUTER.value,
             self._route_from_state,
             {
+                ResumeNode.INGEST_RESUME.value: ResumeNode.INGEST_RESUME.value,
                 ResumeNode.PARSE_RESUME.value: ResumeNode.PARSE_RESUME.value,
                 ResumeNode.EXTRACT_INFO.value: ResumeNode.EXTRACT_INFO.value,
                 ResumeNode.TIMEOUT_RETRY.value: ResumeNode.EXTRACT_INFO.value,
@@ -40,6 +43,7 @@ class ResumeGraph:
         )
 
         for node in [
+            ResumeNode.INGEST_RESUME.value,
             ResumeNode.PARSE_RESUME.value,
             ResumeNode.EXTRACT_INFO.value,
             ResumeNode.TIMEOUT_RETRY.value,
@@ -65,6 +69,7 @@ class ResumeGraph:
 
     def _route_from_state(self, state: ResumeState) -> str:
         step_to_node = {
+            ResumeStep.INGEST_RESUME: ResumeNode.INGEST_RESUME.value,
             ResumeStep.PARSE_RESUME: ResumeNode.PARSE_RESUME.value,
             ResumeStep.EXTRACT_INFO: ResumeNode.EXTRACT_INFO.value,
             ResumeStep.TIMEOUT_RETRY: ResumeNode.TIMEOUT_RETRY.value,
@@ -72,6 +77,32 @@ class ResumeGraph:
             ResumeStep.ERROR: ResumeNode.ERROR_HANDLER.value,
         }
         return step_to_node.get(state.current_step, ResumeNode.ERROR_HANDLER.value)
+    
+    def _ingest_resume_node(self, state: ResumeState) -> ResumeState:
+        logger.info(f"[INGEST_RESUME] Ingesting resume for session {state.session_id}")
+        try:
+            # First parse the resume text
+            text = ""
+            file_input = BytesIO(state.file_input)
+            with fitz.open(stream=file_input, filetype="pdf") as pdf:
+                for page in pdf:
+                    text += page.get_text()
+            
+            logger.info(f"[INGEST_RESUME] Extracted {len(text)} characters from resume")
+            
+            # Then ingest into vector store
+            ingest_document(state.file_input, state.session_id)
+            
+            return state.model_copy(update={
+                "resume_text": text.strip(),
+                "current_step": ResumeStep.EXTRACT_INFO,
+            })
+        except Exception as e:
+            logger.error(f"[INGEST_RESUME] Error ingesting resume: {e}")
+            return state.model_copy(update={
+                "current_step": ResumeStep.ERROR,
+                "error_message": f"Failed to ingest resume: {str(e)}",
+            })
 
     def _parse_resume_node(self, state: ResumeState) -> ResumeState:
         logger.info(f"[PARSE_RESUME] Parsing resume for session {state.session_id}")
@@ -183,7 +214,7 @@ class ResumeGraph:
                 work_type=request.work_type,
                 interview_type=request.interview_type,
                 language=request.language,
-                current_step=ResumeStep.PARSE_RESUME,
+                current_step=ResumeStep.INGEST_RESUME,
             )
 
             logger.info(f"[INVOKE] Starting resume processing for session {request.session_id}")

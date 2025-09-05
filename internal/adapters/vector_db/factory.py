@@ -7,12 +7,11 @@ from internal.config.config import nested_config as config
 
 def get_vector_store(
     *,
-    kind: Optional[str] = None,
     embedder: Optional[EmbeddingFn] = None,
     **kwargs: Any,
 ) -> VectorStore:
 
-    kind = (kind or config["vector_db"]["kind"] or "chroma").lower()
+    kind = (config["vector_db"]["kind"] or "chroma").lower()
 
     if kind == "chroma":
         return ChromaVectorStore(
