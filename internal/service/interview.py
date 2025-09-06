@@ -5,6 +5,7 @@ from internal.adapters.log.logger import logger
 from internal.service.interview_graph import InterviewGraph
 from internal.adapters.db.redis import redis_client
 from internal.adapters.vector_db.ingestion_loader import ingest_document
+from internal.domain.models.vector import VectorCollections
 
 class InterviewService:
     def __init__(self):
@@ -42,7 +43,7 @@ class InterviewService:
                 "user_id": request.user_id,
                 "resume_id": request.resume_id,
             }
-            ingest_document(request.resume_file, request.session_id, metadata)
+            ingest_document(VectorCollections.RESUMES, request.resume_file, request.session_id, metadata)
             return None
 
         except (InterviewSimulationException, Exception) as e:

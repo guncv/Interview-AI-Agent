@@ -7,6 +7,7 @@ from internal.config.config import nested_config as config
 
 def get_vector_store(
     *,
+    collection_name: str,
     embedder: Optional[EmbeddingFn] = None,
     **kwargs: Any,
 ) -> VectorStore:
@@ -15,7 +16,7 @@ def get_vector_store(
 
     if kind == "chroma":
         return ChromaVectorStore(
-            collection_name=kwargs.get("collection_name", "interview_data"),
+            collection_name=collection_name,
             persist_directory=kwargs.get("persist_directory", "./.chroma"),
             embedder=embedder,
         )

@@ -30,5 +30,7 @@ class OpenAIEmbedder:
             raise
 
 def create_embedder(model: str = "text-embedding-3-small") -> EmbeddingFn:
-    embedder = OpenAIEmbedder(model=model)
+    embedder = OpenAIEmbedder(
+            model=model
+        )
     return embedder

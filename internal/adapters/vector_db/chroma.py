@@ -13,8 +13,8 @@ class ChromaVectorStore(VectorStore):
     def __init__(
         self,
         *,
-        collection_name: str = "interview_data",
-        persist_directory: str = "./.chroma",
+        collection_name: str,
+        persist_directory: str,
         embedder: Optional[EmbeddingFn] = None,
     ) -> None:
         if chromadb is None:

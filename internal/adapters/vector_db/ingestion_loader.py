@@ -7,6 +7,7 @@ from langchain_community.document_loaders import PyMuPDFLoader
 import tempfile
 
 def ingest_document(
+    collection_name: str,
     uploaded_pdf_bytes: bytes,
     doc_id: str,
     metadata: [dict],
@@ -31,7 +32,7 @@ def ingest_document(
     embeddings = create_embedder()(texts)
     logger.info(f"embeddings : {embeddings}")
     
-    vector_store = get_vector_store()
+    vector_store = get_vector_store(collection_name=collection_name)
     vector_store.add(
         ids=[f"{doc_id}_{i}" for i in range(len(texts))],
         documents=texts,
