@@ -1,5 +1,4 @@
 from pydantic import BaseModel
-from internal.domain.models.resume import PromptInfo
 from typing import Optional
 from enum import Enum
 
@@ -14,17 +13,10 @@ class InterviewResponse(BaseModel):
     message: str
     
 class RequirementsRequest(BaseModel):
-    session_id: str
+    user_id: str
+    resume_id: str
     resume_file: bytes
-    position: str
-    company: str
-    work_type: str
-    job_requirements: str
-    interview_type: str
-    language: str
-    
-class RequirementsResponse(BaseModel):
-    parsed_json: PromptInfo
+    session_id: str
 
 class InterviewStep(Enum):
     ROLE_SELECTION = 1

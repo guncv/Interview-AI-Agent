@@ -9,7 +9,7 @@ import tempfile
 def ingest_document(
     uploaded_pdf_bytes: bytes,
     doc_id: str,
-    metadata: Optional[dict] = {},
+    metadata: [dict],
     chunk_size: int = 300,
     chunk_overlap: int = 50,
 ) -> None:
@@ -35,6 +35,6 @@ def ingest_document(
     vector_store.add(
         ids=[f"{doc_id}_{i}" for i in range(len(texts))],
         documents=texts,
-        metadatas = [{"source": "resume", "chunk_index": i} for i in range(len(texts))],
+        metadatas = [metadata for i in range(len(texts))],
         embeddings=embeddings
     )

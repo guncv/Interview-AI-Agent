@@ -3,7 +3,6 @@ from typing import Optional, Dict, Any, Type, TypeVar, Callable, List
 from redis import Redis
 from internal.domain.models.interview import InterviewState
 from enum import Enum
-from internal.domain.models.resume import ResumeState
 from internal.config.config import nested_config as config
 from internal.domain.models.speech_recognize import SpeechRecognize, Word
 import dataclasses
@@ -75,12 +74,6 @@ class RedisClient:
         if not data:
             return None
         return model_class(**data)
-
-    def save_resume_state(self, session_id: str, state: ResumeState) -> None:
-        self._save_model_state(session_id, state)
-
-    def load_resume_state(self, session_id: str) -> Optional[ResumeState]:
-        return self._load_model_state(session_id, ResumeState)
     
     def save_interview_state(self, session_id: str, state: InterviewState) -> None:
         self._save_model_state(session_id, state)
