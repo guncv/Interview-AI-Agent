@@ -1,14 +1,13 @@
 from __future__ import annotations
-import os
-from typing import Any, Mapping, Optional
-from internal.domain.ports.vector_store import VectorStore, EmbeddingFn
+from typing import Any
+from internal.domain.ports.vector_store import VectorStore
 from internal.adapters.vector_db.chroma import ChromaVectorStore
 from internal.config.config import nested_config as config
+from internal.adapters.vector_db.embedder import OpenAIEmbedder
 
 def get_vector_store(
     *,
     collection_name: str,
-    embedder: Optional[EmbeddingFn] = None,
     **kwargs: Any,
 ) -> VectorStore:
 
@@ -18,7 +17,7 @@ def get_vector_store(
         return ChromaVectorStore(
             collection_name=collection_name,
             persist_directory=kwargs.get("persist_directory", "./.chroma"),
-            embedder=embedder,
+            embedder=OpenAIEmbedder(model="text-embedding-3-small"),
         )
 
     if kind == "pinecone":
@@ -33,7 +32,7 @@ def get_vector_store(
             dimension=int(kwargs["dimension"]),
             cloud=kwargs.get("cloud", "aws"),
             region=kwargs.get("region", "us-east-1"),
-            embedder=embedder,
+            embedder=OpenAIEmbedder(model="text-embedding-3-small"),
             create_if_missing=kwargs.get("create_if_missing", True),
             metric=kwargs.get("metric", "cosine"),
         )

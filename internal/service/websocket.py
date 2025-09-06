@@ -1,10 +1,12 @@
 from internal.adapters.log.logger import logger
-from internal.domain.models.websocket import WebSocketClient, AudioChunkMessage, SegmentStartMessage, SegmentEndMessage
+from internal.domain.models.websocket import WebSocketClient, AudioChunkMessage, SegmentStartMessage
 from internal.adapters.db.redis import redis_client
 from internal.adapters.stt.whisper_stt import WhisperSpeechToText
+from internal.service.interview_graph import InterviewGraph
 
 class WebSocketService:
     def __init__(self):
+        self.interview_graph = InterviewGraph()
         self.stt_client = WhisperSpeechToText()
         self.redis_client = redis_client
 
@@ -36,27 +38,13 @@ class WebSocketService:
             logger.error(f"[WebSocketService: handle audio chunk] Error: {e}")
             raise e
 
-    async def handle_segment_end(self, client: WebSocketClient, request: SegmentEndMessage):
+    async def handle_segment_end(self, client: WebSocketClient, final_transcript: str):
         logger.info(f"[WebSocketService: handle segment end]:")
 
-
         try:
-            if request.session_id != client.session_id:
-                raise ValueError(f"Session ID mismatch: {request.session_id} != {client.session_id}")
-            
-            curr_transcript = self.redis_client.get_segment_stt(client.session_id, request.segment_id)
-            final_transcript = " ".join(curr_transcript)
-            logger.info(f"[WebSocketService: handle segment end] Final joined transcript: {final_transcript}")
+            message_data = await self.interview_graph.invoke(client.session_id, final_transcript)
+            return message_data
 
-            self.redis_client.clear_segment_stt(client.session_id, request.segment_id)
-
-            return {
-                "type": "user_full_transcript",
-                "author": "user",
-                "session_id": client.session_id,
-                "segment_id": request.segment_id,
-                "transcript": final_transcript
-            }
 
         except Exception as e:
             logger.error(f"[WebSocketService: handle segment end]: {e}")

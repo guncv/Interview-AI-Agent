@@ -1,6 +1,7 @@
 from __future__ import annotations
 from typing import Any, Mapping, Optional, Sequence
-from internal.domain.ports.vector_store import VectorStore, EmbeddingFn, QueryItem, QueryResult
+from internal.domain.ports.vector_store import VectorStore, QueryItem, QueryResult
+from internal.domain.ports.vector_store import EmbeddingFn
 
 try:
     from pinecone import Pinecone, ServerlessSpec
@@ -16,7 +17,7 @@ class PineconeVectorStore(VectorStore):
         dimension: int,
         cloud: str = "aws",
         region: str = "us-east-1",
-        embedder: Optional[EmbeddingFn] = None,
+        embedder: EmbeddingFn,
         create_if_missing: bool = True,
         metric: str = "cosine",
     ) -> None:

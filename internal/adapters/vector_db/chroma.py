@@ -1,6 +1,7 @@
 from __future__ import annotations
 from typing import Any, Mapping, Optional, Sequence
 from internal.domain.ports.vector_store import VectorStore, EmbeddingFn, QueryItem, QueryResult
+from internal.adapters.log.logger import logger
 
 try:
     import chromadb
@@ -15,7 +16,7 @@ class ChromaVectorStore(VectorStore):
         *,
         collection_name: str,
         persist_directory: str,
-        embedder: Optional[EmbeddingFn] = None,
+        embedder: EmbeddingFn,
     ) -> None:
         if chromadb is None:
             raise RuntimeError("chromadb is not installed. `pip install chromadb`")
@@ -88,7 +89,10 @@ class ChromaVectorStore(VectorStore):
     def query_by_text(
         self, *, text: str, k: int = 5, include_documents: bool = True
     ) -> QueryResult:
+        logger.info(f"[ChromaVectorStore.query_by_text]: text={text[:100]}...")
         if self._embedder is None:
             raise ValueError("No embedder configured on ChromVectorStore.")
+        
         vec = self._embedder([text])[0]
+        logger.info(f"Querying vector store by text: {text[:100]}...")
         return self.query_by_vector(vector=vec, k=k, include_documents=include_documents)
