@@ -10,6 +10,9 @@ class WebSocketService:
 
     async def handle_segment_start(self, client: WebSocketClient, request: SegmentStartMessage):
         logger.info(f"[WebSocketService: handle segment start]: Called")
+        if request.session_id != client.session_id:
+            raise ValueError(f"Session ID mismatch: {request.session_id} != {client.session_id}")
+
         client.current_segment_id = request.segment_id
 
     async def handle_audio_chunk(self, client: WebSocketClient, audio_message: AudioChunkMessage):
@@ -36,7 +39,11 @@ class WebSocketService:
     async def handle_segment_end(self, client: WebSocketClient, request: SegmentEndMessage):
         logger.info(f"[WebSocketService: handle segment end]:")
 
+
         try:
+            if request.session_id != client.session_id:
+                raise ValueError(f"Session ID mismatch: {request.session_id} != {client.session_id}")
+            
             curr_transcript = self.redis_client.get_segment_stt(client.session_id, request.segment_id)
             final_transcript = " ".join(curr_transcript)
             logger.info(f"[WebSocketService: handle segment end] Final joined transcript: {final_transcript}")
