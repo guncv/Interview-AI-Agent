@@ -47,3 +47,4 @@ dependencies:
       - PyJWT
       - numpy
       - language-tool-python>=2.8.0
+      - chromadb

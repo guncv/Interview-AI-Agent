@@ -20,6 +20,7 @@ class JWTToken:
                 raise InterviewSimulationException(error_code=InterviewSimulationErrorCodes.TOKEN_EXPIRED)
             
             payload = jwt.decode(token, self.secret_key, algorithms=[self.algorithm])
+            logger.info(f"[JWTToken: verify_token] Payload: {payload}")
             return payload
         except Exception as e:
             logger.error(f"[JWTToken: verify_token] Unexpected error: {e}")

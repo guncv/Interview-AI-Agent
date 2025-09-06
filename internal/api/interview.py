@@ -1,4 +1,5 @@
-from fastapi import APIRouter, UploadFile, File, Form
+from fastapi import APIRouter, Response, UploadFile, File, Form
+from fastapi import status
 from internal.shared.exception import InterviewSimulationException
 from internal.domain.exception import InterviewSimulationErrorCodes
 from internal.adapters.log.logger import logger
@@ -15,7 +16,10 @@ async def health_check_api():
     logger.info("[Health Check API Called: ]")
     try:
         resp = await interview_service.health_check()
-        return resp
+        return Response(
+            status_code=status.HTTP_200_OK,
+            content=resp.model_dump()
+        )
     except (InterviewSimulationException, Exception) as e:
         if type(e) != InterviewSimulationException:
             e = InterviewSimulationException(error_code=InterviewSimulationErrorCodes.INTERNAL_ERROR, description=f"[{type(e).__name__}]: {str(e)}")
@@ -27,7 +31,10 @@ async def interview_api(request: InterviewRequest):
     logger.info(f"[Interview API Called: ]")
     try:
         resp = await interview_service.interview(request)
-        return resp
+        return Response(
+            status_code=status.HTTP_200_OK,
+            content=resp.model_dump()
+        )
     except (InterviewSimulationException, Exception) as e:
         if type(e) != InterviewSimulationException:
             e = InterviewSimulationException(error_code=InterviewSimulationErrorCodes.INTERNAL_ERROR, description=f"[{type(e).__name__}]: {str(e)}")
@@ -36,13 +43,9 @@ async def interview_api(request: InterviewRequest):
 
 @router.post("/requirements")
 async def requirements_api(
-    session_id: str = Form(...),
-    position: str = Form(...),
-    company: str = Form(...),
-    work_type: str = Form(...),
-    job_requirements: str = Form(...),
-    interview_type: str = Form(...),
-    language: str = Form(...),
+    user_id: str = Form(...),
+    resume_id: str= Form(...),
+    session_id: str= Form(...),
     resume_file: UploadFile = File(...),
 ):
     logger.info(f"[Requirements API Called: ]")
@@ -50,18 +53,16 @@ async def requirements_api(
         file_bytes = await resume_file.read()
 
         request = RequirementsRequest(
-            session_id=session_id,
+            user_id=user_id,
+            resume_id=resume_id,
             resume_file=file_bytes,
-            position=position,
-            company=company,
-            work_type=work_type,
-            job_requirements=job_requirements,
-            interview_type=interview_type,
-            language=language,
+            session_id=session_id,
         )
 
         resp = await interview_service.requirements(request)
-        return resp
+        return Response(
+            status_code=status.HTTP_204_NO_CONTENT
+            )
     except (InterviewSimulationException, Exception) as e:
         if not isinstance(e, InterviewSimulationException):
             e = InterviewSimulationException(

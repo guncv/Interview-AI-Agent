@@ -21,9 +21,26 @@ class WebSocketServerCallback:
 
     async def handle_segment_end(self, client: WebSocketClient, request: SegmentEndMessage):
         try:
-            message_data = await self.websocket_service.handle_segment_end(client, request)
+            if request.session_id != client.session_id:
+                raise ValueError(f"Session ID mismatch: {request.session_id} != {client.session_id}")
+            
+            curr_transcript = self.websocket_service.redis_client.get_segment_stt(client.session_id, request.segment_id)
+            final_transcript = " ".join(curr_transcript)
+            logger.info(f"[WebSocketService: handle segment end] Final joined transcript: {final_transcript}")
 
-            await client.websocket.send_text(json.dumps(message_data))
+            self.websocket_service.redis_client.clear_segment_stt(client.session_id, request.segment_id)
+            
+            await client.websocket.send_text(json.dumps({
+                "type": "user_full_transcript",
+                "author": "user",
+                "session_id": client.session_id,
+                "segment_id": request.segment_id,
+                "transcript": final_transcript
+            }))
+            
+            message_data = await self.websocket_service.handle_segment_end(client, final_transcript)
+            logger.info(f"[WebSocketService: handle segment end] Message data: {message_data}")
+
         except Exception as e:
             logger.error(f"[Websocket: handle segment end]: {e}")
             raise e

@@ -17,13 +17,14 @@ class WebSocketServer:
     async def connect(self, websocket: WebSocket, params: dict) -> WebSocketClient:
         user_id = params["user_id"]
         session_id = params["session_id"]
+        resume_id = params["resume_id"]
         
-        logger.info(f"[Websocket: connect] {user_id} {session_id}")
+        logger.info(f"[Websocket: connect] {user_id} {session_id} {resume_id}")
         if session_id in self.active_connections:
             await self.disconnect(self.active_connections[session_id])
         await websocket.accept()
         
-        client = WebSocketClient(websocket, user_id, session_id)
+        client = WebSocketClient(websocket, user_id, session_id, resume_id)
         self.active_connections[session_id] = client
         self.user_sessions.setdefault(user_id, set()).add(session_id)
         

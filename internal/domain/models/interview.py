@@ -1,5 +1,4 @@
 from pydantic import BaseModel
-from internal.domain.models.resume import PromptInfo
 from typing import Optional
 from enum import Enum
 
@@ -14,47 +13,32 @@ class InterviewResponse(BaseModel):
     message: str
     
 class RequirementsRequest(BaseModel):
-    session_id: str
+    user_id: str
+    resume_id: str
     resume_file: bytes
-    position: str
-    company: str
-    work_type: str
-    job_requirements: str
-    interview_type: str
-    language: str
-    
-class RequirementsResponse(BaseModel):
-    parsed_json: PromptInfo
+    session_id: str
 
 class InterviewStep(Enum):
-    ROLE_SELECTION = 1
-    ASK_QUESTION = 2
-    PARSE_ANSWER = 3
-    GIVE_FEEDBACK = 4
-    END_INTERVIEW = 5
+    QUERY_VECTOR_DB = 1
+    PROCESS_ANSWER = 2
+    STORE_ANSWER = 3
+    END_TURN = 4
     ERROR = -1
     
 class InterviewNode(Enum):
     ROUTER = "router"
-    ASK_QUESTION = "ask_question"
-    PARSE_ANSWER = "parse_answer"
-    GIVE_FEEDBACK = "give_feedback"
-    END_INTERVIEW = "end_interview"
+    QUERY_VECTOR_DB = "query_vector_db"
+    PROCESS_ANSWER = "process_answer"
+    STORE_ANSWER = "store_answer"
+    END_TURN = "end_turn"
     ERROR_HANDLER = "error_handler"
     
-class AskQuestionRes(BaseModel):
+class QueryVectorDBRes(BaseModel):
     message: str
     
 class InterviewState(BaseModel):
     session_id: str
     user_input: str
-    current_step: InterviewStep
+    prompt: str
     message: Optional[str] = None
-    role: Optional[str] = None
-    question: Optional[str] = None
-    feedback: Optional[str] = None
-    score: Optional[float] = None
-    match_score: Optional[float] = None
-    is_finished: bool = False
-    should_pause: bool = True
     error_message: Optional[str] = None
