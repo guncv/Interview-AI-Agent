@@ -1,13 +1,15 @@
 from internal.adapters.log.logger import logger
-from internal.domain.models.interview import InterviewNode, InterviewState
+from internal.domain.models.interview import InterviewNode, InterviewState, InterviewProcessState
 from langgraph.graph import StateGraph, END
 from internal.domain.models.vector import VectorCollections
 from internal.adapters.vector_db.factory import get_vector_store
 from internal.shared.exception import InterviewSimulationException, InterviewSimulationErrorCodes
+from internal.service.process_graph import InterviewProcessingGraph
 
 class InterviewGraph:
     def __init__(self):
         self.graph = self._build_graph()
+        self.process_graph = InterviewProcessingGraph()
 
     def _ok_or_error(self, state: InterviewState) -> str:
         return "error" if state.error_message else "ok"
@@ -71,11 +73,17 @@ class InterviewGraph:
                 "error_message": str(e),
             })
 
-    def _process_answer_node(self, state: InterviewState) -> InterviewState:
+    async def _process_answer_node(self, state: InterviewState) -> InterviewState:
         logger.info(f"[PROCESS ANSWER]: state={state}")
         
+        answer = await self.process_graph.invoke(
+            state.session_id,
+            state.user_input
+            )
+        logger.info(f"[PROCESS ANSWER]: answer={answer}")
         try:
             return state.model_copy(update={
+                "message": answer.message or "",
             })
         except Exception as e:
             logger.exception("[PROCESS ANSWER] error")
@@ -83,7 +91,7 @@ class InterviewGraph:
                 "error_message": str(e),
             })
 
-    def _store_answer_node(self, state: InterviewState) -> InterviewState:
+    async def _store_answer_node(self, state: InterviewState) -> InterviewState:
         logger.info(f"[STORE ANSWER]: state={state}")
         
         try:
