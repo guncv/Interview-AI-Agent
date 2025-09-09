@@ -38,11 +38,17 @@ class WebSocketServerCallback:
                 "transcript": final_transcript
             }))
             
-            message_data = await self.websocket_service.handle_segment_end(client, final_transcript)
-            logger.info(f"[WebSocketService: handle segment end] Message data: {message_data}")
+            message = await self.websocket_service.handle_segment_end(client, final_transcript)
+            
+            await client.websocket.send_text(json.dumps({
+                "type": "interviewer_response",
+                "author": "interviewer",
+                "session_id": client.session_id,
+                "message": message
+            }))
+            
+            logger.info(f"[WebSocketService: handle segment end] Message data: {message}")
 
         except Exception as e:
             logger.error(f"[Websocket: handle segment end]: {e}")
             raise e
-
-    

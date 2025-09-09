@@ -38,13 +38,15 @@ class WebSocketService:
             logger.error(f"[WebSocketService: handle audio chunk] Error: {e}")
             raise e
 
-    async def handle_segment_end(self, client: WebSocketClient, final_transcript: str):
-        logger.info(f"[WebSocketService: handle segment end]:")
+    async def handle_segment_end(self, client: WebSocketClient, final_transcript: str) -> str:
+        logger.info(f"[WebSocketService: handle segment end] Called:")
 
         try:
             message_data = await self.interview_graph.invoke(client.session_id, final_transcript)
-            return message_data
-
+            if message_data.message:
+                return message_data.message
+            else:
+                return "Sorry, there was an error processing your request. Please try again."
 
         except Exception as e:
             logger.error(f"[WebSocketService: handle segment end]: {e}")
