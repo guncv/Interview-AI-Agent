@@ -78,9 +78,10 @@ class InterviewGraph:
         
         answer = await self.process_graph.invoke(
             state.session_id,
-            state.user_input
+            state.user_input,
+            state.prompt,
             )
-        logger.info(f"[PROCESS ANSWER]: answer={answer}")
+                
         try:
             return state.model_copy(update={
                 "message": answer.message or "",

@@ -27,6 +27,7 @@ class InterviewService:
         logger.info(f"[Interview Service Called: ]")
         try:
             resp = self.interview_graph.invoke(request.session_id, request.user_input)
+            redis_client.save_interview_state(request.session_id, resp)
             return resp
         
         except (InterviewSimulationException, Exception) as e:
