@@ -3,6 +3,8 @@ from internal.domain.models.websocket import WebSocketClient, AudioChunkMessage,
 from internal.adapters.db.redis import redis_client
 from internal.adapters.stt.whisper_stt import WhisperSpeechToText
 from internal.service.interview_graph import InterviewGraph
+from internal.domain.models.interview import InterviewServiceResponse
+from datetime import datetime, timezone
 
 class WebSocketService:
     def __init__(self):
@@ -38,15 +40,21 @@ class WebSocketService:
             logger.error(f"[WebSocketService: handle audio chunk] Error: {e}")
             raise e
 
-    async def handle_segment_end(self, client: WebSocketClient, final_transcript: str) -> str:
+    async def handle_segment_end(self, client: WebSocketClient, final_transcript: str) -> InterviewServiceResponse:
         logger.info(f"[WebSocketService: handle segment end] Called:")
 
         try:
+            started_at = datetime.now(timezone.utc).isoformat()
             message_data = await self.interview_graph.invoke(client.session_id, final_transcript)
-            if message_data.message:
-                return message_data.message
-            else:
-                return "Sorry, there was an error processing your request. Please try again."
+            ended_at = datetime.now(timezone.utc).isoformat()
+            
+            resp = InterviewServiceResponse(
+                message=message_data.message,
+                started_at=started_at,
+                ended_at=ended_at
+            )
+            return resp
+
 
         except Exception as e:
             logger.error(f"[WebSocketService: handle segment end]: {e}")

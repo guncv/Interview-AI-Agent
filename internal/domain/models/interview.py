@@ -41,6 +41,10 @@ class InterviewState(BaseModel):
     message: Optional[str] = None
     error_message: Optional[str] = None
 
+class InterviewServiceResponse(BaseModel):
+    message: str = None
+    started_at: str = None
+    ended_at: str = None
 class InterviewProcessStep(Enum):
     ROUTER = 1
     INTRO = 2
