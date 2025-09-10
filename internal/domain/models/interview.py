@@ -41,7 +41,7 @@ class CriteriaScore(BaseModel):
     criterion_feedback: str
     
 class FeedbackAndScoreResponse(BaseModel):
-    overall_score: int
+    overall_score: float
     overall_feedback: str
     criteria_scores: List[CriteriaScore]
     

@@ -30,7 +30,7 @@ class FeedbackAndScoreService:
             max_score = max(float(c.criterion_max_score) for c in request.criteria)
             
             criteria_map = {
-                (c.criterion_code, c.criterion_name): c 
+                (c.criterion_code, c.criterion_name): c
                 for c in request.criteria
             }
 
@@ -61,16 +61,25 @@ class FeedbackAndScoreService:
                     ))
                 else:
                     logger.warning(f"Could not map criterion: {item.get('criterion_code', 'N/A')} - {item.get('criterion_name', 'N/A')}")
-                    criteria_scores.append(CriteriaScore(
-                        criterion_id=item.get("criterion_id", "unknown"),
-                        criterion_code=item.get("criterion_code", ""),
-                        criterion_name=item.get("criterion_name", ""),
-                        criterion_score=item["criterion_score"],
-                        criterion_feedback=item["criterion_feedback"]
-                    ))
+            
+            total_weighted_score = 0
+            total_weight = 0
+            
+            for criteria_score in criteria_scores:
+                original_criterion = next(
+                    (c for c in request.criteria if c.criterion_id == criteria_score.criterion_id), 
+                    None
+                )
+                if original_criterion:
+                    weight = float(original_criterion.criterion_weight)
+                    total_weighted_score += criteria_score.criterion_score * weight
+                    total_weight += weight
+            
+            overall_score = total_weighted_score / total_weight if total_weight > 0 else 0
+            formatted_score = int(overall_score) if overall_score.is_integer() else round(overall_score, 2)
             
             return FeedbackAndScoreResponse(
-                overall_score=result["overall_score"],
+                overall_score=formatted_score,
                 overall_feedback=result["overall_feedback"],
                 criteria_scores=criteria_scores
             )

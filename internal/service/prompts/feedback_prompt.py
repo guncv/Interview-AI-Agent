@@ -26,7 +26,6 @@ FEEDBACK_AND_SCORING_PROMPT = ChatPromptTemplate.from_template("""
     ## Output Format (in JSON):
     Respond in the following JSON format only:
     {{
-    "overall_score": <integer score 0-{max_score}>,
     "overall_feedback": "<overall feedback text>",
     "criteria_scores": [
         {{
