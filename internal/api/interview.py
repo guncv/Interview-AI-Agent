@@ -16,10 +16,7 @@ async def health_check_api():
     logger.info("[Health Check API Called: ]")
     try:
         resp = await interview_service.health_check()
-        return Response(
-            status_code=status.HTTP_200_OK,
-            content=resp.model_dump()
-        )
+        return resp
     except (InterviewSimulationException, Exception) as e:
         if type(e) != InterviewSimulationException:
             e = InterviewSimulationException(error_code=InterviewSimulationErrorCodes.INTERNAL_ERROR, description=f"[{type(e).__name__}]: {str(e)}")
@@ -31,10 +28,7 @@ async def interview_api(request: InterviewRequest):
     logger.info(f"[Interview API Called: ]")
     try:
         resp = await interview_service.interview(request)
-        return Response(
-            status_code=status.HTTP_200_OK,
-            content=resp.model_dump()
-        )
+        return resp
     except (InterviewSimulationException, Exception) as e:
         if type(e) != InterviewSimulationException:
             e = InterviewSimulationException(error_code=InterviewSimulationErrorCodes.INTERNAL_ERROR, description=f"[{type(e).__name__}]: {str(e)}")
@@ -71,4 +65,3 @@ async def requirements_api(
             )
         logger.error(f"[Requirements API Error]: {e}")
         e.raise_HTTPException()
-

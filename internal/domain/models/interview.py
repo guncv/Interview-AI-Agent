@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import List, Optional
 from enum import Enum
 
 class HealthCheckResponse(BaseModel):
@@ -8,7 +8,7 @@ class HealthCheckResponse(BaseModel):
 class InterviewRequest(BaseModel):
     session_id: str
     user_input: str
-    
+
 class InterviewResponse(BaseModel):
     message: str
     
@@ -17,6 +17,34 @@ class RequirementsRequest(BaseModel):
     resume_id: str
     resume_file: bytes
     session_id: str
+    
+class Criteria(BaseModel):
+	criterion_id: str
+	criterion_code: str
+	criterion_name: str
+	criterion_description_md: str
+	criterion_weight: str
+	criterion_max_score: str
+
+class FeedbackAndScoreRequest(BaseModel):
+    user_message: str
+    interviewer_message: str
+    rubric_name: str
+    rubric_description_md: str
+    criteria: List[Criteria]
+
+class CriteriaScore(BaseModel):
+    criterion_id: str
+    criterion_code: str
+    criterion_name: str
+    criterion_score: int
+    criterion_feedback: str
+    
+class FeedbackAndScoreResponse(BaseModel):
+    overall_score: int
+    overall_feedback: str
+    criteria_scores: List[CriteriaScore]
+    
 class QueryVectorDBRes(BaseModel):
     message: str
     
@@ -45,6 +73,7 @@ class InterviewServiceResponse(BaseModel):
     message: str = None
     started_at: str = None
     ended_at: str = None
+
 class InterviewProcessStep(Enum):
     ROUTER = 1
     INTRO = 2
