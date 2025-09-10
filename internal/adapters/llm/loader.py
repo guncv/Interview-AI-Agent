@@ -1,6 +1,8 @@
 from internal.config.config import nested_config as config
 from langchain_core.prompts import ChatPromptTemplate
 from internal.adapters.log.logger import logger
+from internal.adapters.llm.state_store import getMemory
+from langchain_community.chat_message_histories import ChatMessageHistory
 
 class LLM:
     def __init__(self):
@@ -76,6 +78,11 @@ class LLM:
                 )
         else:
             raise ValueError("Unsupported LLM provider")
+
+def getChatHistory(session_id: str) -> ChatMessageHistory:
+    logger.info(f"[getChatHistory: Called]: {session_id}")
+    memory: ChatMessageHistory = getMemory(session_id)
+    return memory
 
 llm = LLM()
 def loadLLM(type: str):

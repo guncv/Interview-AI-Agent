@@ -92,10 +92,12 @@ class InterviewProcessState(BaseModel):
     message: Optional[str] = None
     context: Optional[str] = None
     error_message: Optional[str] = None
+    go_to_next_step: Optional[bool] = False
 
-class IntroResponse(BaseModel):
+class ProcessPromptResponse(BaseModel):
     message: str
     next_step: str
+    go_to_next_step: bool
 
 class InterviewProcessNode(Enum):
     ROUTER = "router"

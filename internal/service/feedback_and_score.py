@@ -44,8 +44,6 @@ class FeedbackAndScoreService:
             }
 
             result = await self.chain.ainvoke(inputs)
-
-            logger.info(f"[Feedback and Score Service Result]: {result}")
             
             criteria_scores = []
             for item in result["criteria_scores"]:

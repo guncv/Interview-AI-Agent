@@ -1,14 +1,14 @@
 from langchain_core.runnables import RunnableLambda
 from langgraph.graph import StateGraph, END
-from internal.domain.models.interview import InterviewProcessStep, InterviewProcessNode, InterviewProcessState, IntroResponse
+from internal.domain.models.interview import InterviewProcessStep, InterviewProcessNode, InterviewProcessState, ProcessPromptResponse
 from internal.adapters.log.logger import logger
 from internal.adapters.llm.state_store import acquire_lock, load_state, save_state, release_lock, clear_state
 from langgraph.checkpoint.memory import MemorySaver
-from langchain_core.prompts import PromptTemplate
-from internal.service.prompts.interview_prompt import INTRO_PROMPT
-from internal.adapters.llm.loader import loadLLM
+from internal.service.prompts.interview_prompt import INTRO_PROMPT, ASK_EXPERIENCE_PROMPT, ASK_PROJECT_PROMPT
+from internal.adapters.llm.loader import getChatHistory, loadLLM
 from internal.domain.models.vector import VectorCollections
 from internal.adapters.vector_db.factory import get_vector_store
+from langchain_core.runnables import RunnableWithMessageHistory
 
 class InterviewProcessingGraph:
     def __init__(self):
@@ -72,7 +72,7 @@ class InterviewProcessingGraph:
         return state.current_step
 
     def _after_node_continue_or_pause(self, state: InterviewProcessState) -> str:
-        return "pause"
+        return "continue" if state.go_to_next_step else "pause"
 
     def _intro_node(self, state: InterviewProcessState) -> InterviewProcessState:
         logger.info("[INTRO] Asking candidate to introduce themselves")
@@ -94,12 +94,17 @@ class InterviewProcessingGraph:
             "resume_info": resume_text if resume_text else "No resume information available"
         }
         
-        out = self._invoke_node(INTRO_PROMPT, IntroResponse, prompt_input)
+        out = self._invoke_node(INTRO_PROMPT, ProcessPromptResponse, state.session_id, prompt_input)
 
         if out.next_step == "ASK_PROJECT":
             next_step = InterviewProcessStep.ASK_PROJECT
-        else:
+            go_to_next_step = True
+        elif out.next_step == "ASK_EXPERIENCE":
             next_step = InterviewProcessStep.ASK_EXPERIENCE
+            go_to_next_step = True
+        else:
+            next_step = InterviewProcessStep.INTRO
+            go_to_next_step = False
             
         logger.info(f"[INTRO] Next step determined: {next_step}")
         logger.info(f"[INTRO] Message: {out.message}")
@@ -107,23 +112,55 @@ class InterviewProcessingGraph:
         return state.model_copy(update={
             "message": out.message,
             "current_step": next_step,
+            "go_to_next_step": go_to_next_step,
         })
 
     def _experience_node(self, state: InterviewProcessState) -> InterviewProcessState:
         logger.info("[EXPERIENCE] Asking experience question")
         
+        prompt_input = {
+            "input": state.user_input if state.user_input.strip() else "This is the start of experience question - please ask the candidate to tell you about their work experience.",
+            "context": state.context if state.context else "No context available"
+        }
+        
+        out = self._invoke_node(ASK_EXPERIENCE_PROMPT, ProcessPromptResponse, state.session_id, prompt_input)
+        
+        if out.next_step == "ASK_PROJECT":
+            go_to_next_step = True
+            next_step = InterviewProcessStep.ASK_PROJECT
+        else:
+            go_to_next_step = False
+            next_step = InterviewProcessStep.ASK_EXPERIENCE
+            
         return state.model_copy(update={
-            "message": "Can you tell me about your work experience?",
-            "current_step": InterviewProcessStep.ASK_PROJECT,
+            "message": out.message,
+            "current_step": next_step,
+            "go_to_next_step": go_to_next_step,
         })
 
     def _projects_node(self, state: InterviewProcessState) -> InterviewProcessState:
         logger.info("[PROJECTS] Asking projects question")
         
+        prompt_input = {
+            "input": state.user_input if state.user_input.strip() else "This is the start of projects question - please ask the candidate to tell you about their projects.",
+            "context": state.context if state.context else "No context available"
+        }
+        
+        out = self._invoke_node(ASK_PROJECT_PROMPT, ProcessPromptResponse, state.session_id, prompt_input)
+        
+        if out.next_step == "TECHNICAL_QUESTION":
+            go_to_next_step = True
+            next_step = InterviewProcessStep.TECHNICAL_QUESTION
+        else:
+            go_to_next_step = False
+            next_step = InterviewProcessStep.ASK_PROJECT
+            
         return state.model_copy(update={
-            "message": "Tell me about a project you're proud of.",
-            "current_step": InterviewProcessStep.TECHNICAL_QUESTION,
+            "message": out.message,
+            "current_step": next_step,
+            "go_to_next_step": go_to_next_step,
         })
+        
 
     def _technical_node(self, state: InterviewProcessState) -> InterviewProcessState:
         logger.info("[TECHNICAL] Asking technical question")
@@ -154,8 +191,11 @@ class InterviewProcessingGraph:
         return state.model_copy(update={
             "message": "Sorry, there was an error processing your request. Please try again.",
         })
-    
-    def _invoke_node(self, prompt, schema, user_input: str):
+        
+    def _invoke_node(self, prompt, schema, session_id: str, prompt_input):
+        chat_history = getChatHistory(session_id)
+        msgs = getattr(chat_history, "messages", [])
+
         runnable_struct = prompt | self.llm.with_structured_output(schema)
 
         def to_both(x):
@@ -168,7 +208,44 @@ class InterviewProcessingGraph:
 
         runnable_both = runnable_struct | RunnableLambda(to_both)
 
-        data = runnable_both.invoke(user_input)
+        def _get_history_for_langchain(config):
+            try:
+                if isinstance(config, str):
+                    sid = config
+                elif isinstance(config, dict):
+                    sid = config.get("configurable", {}).get("session_id") \
+                        or config.get("configurable", {}).get("thread_id") \
+                        or config.get("session_id") \
+                        or config.get("thread_id") \
+                        or session_id
+                else:
+                    sid = session_id
+            except Exception:
+                sid = session_id
+
+            return getChatHistory(sid)
+
+
+        chain = RunnableWithMessageHistory(
+            runnable=runnable_both,
+            get_session_history=_get_history_for_langchain,
+            input_messages_key="input",
+            history_messages_key="history",
+            output_messages_key="output",
+        )
+
+        if isinstance(prompt_input, str):
+            invoke_data = {"input": prompt_input}
+        else:
+            invoke_data = prompt_input
+
+        data = chain.invoke(
+            invoke_data,
+            config={"configurable": {"session_id": session_id}},
+        )
+
+        msgs_after = getattr(getChatHistory(session_id), "messages", [])
+        logger.info("[CHAT_HISTORY:after] sid=%s count=%d messages=%s", session_id, len(msgs_after), msgs_after)
 
         return schema(**data["raw"])
 
@@ -180,7 +257,10 @@ class InterviewProcessingGraph:
 
             if prev_state:
                 initial_state = prev_state.model_copy(
-                    update={"user_input": user_input,"context": context}
+                    update={
+                        "user_input": user_input,
+                        "context": context
+                    }
                 )
             else:
                 initial_state = InterviewProcessState(

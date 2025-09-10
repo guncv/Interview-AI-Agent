@@ -1,16 +1,24 @@
 from __future__ import annotations
 import os
-from typing import Dict
 import os, json
 from typing import Optional
 from redis import Redis
 from internal.domain.models.interview import InterviewProcessState
 from enum import Enum
+from langchain_community.chat_message_histories import (
+    ChatMessageHistory,
+    RedisChatMessageHistory,
+)
+from typing import Dict
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 STATE_TTL_SECONDS = int(os.getenv("STATE_TTL_SECONDS", "900"))
 STATE_PREFIX = os.getenv("REDIS_STATE_PREFIX", "interview-sim:state")
 LOCK_PREFIX = os.getenv("REDIS_LOCK_PREFIX", "interview-sim:lock")
+MEMORY_TTL_SECONDS = int(os.getenv("MEMORY_TTL_SECONDS", "3600"))
+REDIS_CHAT_PREFIX = os.getenv("REDIS_CHAT_PREFIX", "interview-sim:chat")
+
+_memory_store: Dict[str, ChatMessageHistory] = {}
 
 r = Redis.from_url(REDIS_URL, decode_responses=True)
 
@@ -40,3 +48,34 @@ def acquire_lock(session_id: str, ttl: int = 5) -> bool:
 
 def release_lock(session_id: str) -> None:
     r.delete(f"{LOCK_PREFIX}:{session_id}")
+
+def _use_redis() -> bool:
+    return bool(REDIS_URL)
+
+def getMemory(session_id: str) -> ChatMessageHistory:
+    if _use_redis():
+        return RedisChatMessageHistory(
+            session_id=session_id,
+            url=REDIS_URL,
+            ttl=MEMORY_TTL_SECONDS,
+            key_prefix=REDIS_CHAT_PREFIX,
+        )
+
+    hist = _memory_store.get(session_id)
+    if hist is None:
+        hist = ChatMessageHistory()
+        _memory_store[session_id] = hist
+    return hist
+
+
+def clearMemory(session_id: str) -> None:
+    if _use_redis():
+        RedisChatMessageHistory(
+            session_id=session_id,
+            url=REDIS_URL,
+            key_prefix=REDIS_CHAT_PREFIX,
+        ).clear()
+        return
+
+    _memory_store.pop(session_id, None)
+
