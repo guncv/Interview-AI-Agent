@@ -54,6 +54,7 @@ class InterviewStep(Enum):
     STORE_ANSWER = 3
     END_TURN = 4
     ERROR = -1
+    
 class InterviewNode(Enum):
     ROUTER = "router"
     QUERY_VECTOR_DB = "query_vector_db"
@@ -76,14 +77,15 @@ class InterviewServiceResponse(BaseModel):
 
 class InterviewProcessStep(Enum):
     ROUTER = 1
-    INTRO = 2
-    ASK_EXPERIENCE = 3
-    ASK_PROJECT = 4
-    TECHNICAL_QUESTION = 5
-    BEHAVIORAL_QUESTION = 6
-    CANDIDATE_QUESTIONS = 7
-    WRAP_UP = 8
-    ERROR_HANDLER = 9
+    GREETING = 2
+    INTRO = 3
+    ASK_EXPERIENCE = 4
+    ASK_PROJECT = 5
+    TECHNICAL_QUESTION = 6
+    BEHAVIORAL_QUESTION = 7
+    CANDIDATE_QUESTIONS = 8
+    WRAP_UP = 9
+    ERROR_HANDLER = 10
 
 class InterviewProcessState(BaseModel):
     session_id: str
@@ -100,6 +102,7 @@ class ProcessPromptResponse(BaseModel):
 
 class InterviewProcessNode(Enum):
     ROUTER = "router"
+    GREETING = "greeting"
     INTRO = "intro"
     ASK_EXPERIENCE = "ask_experience"
     ASK_PROJECT = "ask_project"
