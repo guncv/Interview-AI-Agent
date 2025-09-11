@@ -2,7 +2,7 @@ from langchain_core.runnables import RunnableLambda
 from langgraph.graph import StateGraph, END
 from internal.domain.models.interview import InterviewProcessStep, InterviewProcessNode, InterviewProcessState, ProcessPromptResponse
 from internal.adapters.log.logger import logger
-from internal.adapters.llm.state_store import acquire_lock, load_state, save_state, release_lock, clear_state
+from internal.adapters.llm.state_store import acquire_lock, load_state, save_state, release_lock, clear_state, clearMemory
 from langgraph.checkpoint.memory import MemorySaver
 from internal.service.prompts.interview_prompt import INTRO_PROMPT, ASK_EXPERIENCE_PROMPT, ASK_PROJECT_PROMPT
 from internal.adapters.llm.loader import getChatHistory, loadLLM
@@ -72,7 +72,16 @@ class InterviewProcessingGraph:
         return state.current_step
 
     def _after_node_continue_or_pause(self, state: InterviewProcessState) -> str:
-        return "continue" if state.go_to_next_step else "pause"
+        if state.go_to_next_step:
+            try:
+                clearMemory(state.session_id)
+                logger.info(f"[MEMORY] Cleared memory for session {state.session_id}")
+            except Exception:
+                logger.exception(f"[MEMORY] Failed to clear memory for session {state.session_id}")
+            return "continue"
+        else:
+            return "pause"
+
 
     def _intro_node(self, state: InterviewProcessState) -> InterviewProcessState:
         logger.info("[INTRO] Asking candidate to introduce themselves")
@@ -94,7 +103,7 @@ class InterviewProcessingGraph:
             "resume_info": resume_text if resume_text else "No resume information available"
         }
         
-        out = self._invoke_node(INTRO_PROMPT, ProcessPromptResponse, state.session_id, prompt_input)
+        out = self._invoke_node(INTRO_PROMPT, state.session_id, prompt_input)
 
         if out.next_step == "ASK_PROJECT":
             next_step = InterviewProcessStep.ASK_PROJECT
@@ -120,10 +129,10 @@ class InterviewProcessingGraph:
         
         prompt_input = {
             "input": state.user_input if state.user_input.strip() else "This is the start of experience question - please ask the candidate to tell you about their work experience.",
-            "context": state.context if state.context else "No context available"
+            "resume_info": "No resume information available"
         }
         
-        out = self._invoke_node(ASK_EXPERIENCE_PROMPT, ProcessPromptResponse, state.session_id, prompt_input)
+        out = self._invoke_node(ASK_EXPERIENCE_PROMPT, state.session_id, prompt_input)
         
         if out.next_step == "ASK_PROJECT":
             go_to_next_step = True
@@ -131,7 +140,7 @@ class InterviewProcessingGraph:
         else:
             go_to_next_step = False
             next_step = InterviewProcessStep.ASK_EXPERIENCE
-            
+
         return state.model_copy(update={
             "message": out.message,
             "current_step": next_step,
@@ -143,18 +152,18 @@ class InterviewProcessingGraph:
         
         prompt_input = {
             "input": state.user_input if state.user_input.strip() else "This is the start of projects question - please ask the candidate to tell you about their projects.",
-            "context": state.context if state.context else "No context available"
+            "resume_info": "No resume information available"
         }
         
-        out = self._invoke_node(ASK_PROJECT_PROMPT, ProcessPromptResponse, state.session_id, prompt_input)
-        
+        out = self._invoke_node(ASK_PROJECT_PROMPT, state.session_id, prompt_input)
+
         if out.next_step == "TECHNICAL_QUESTION":
             go_to_next_step = True
             next_step = InterviewProcessStep.TECHNICAL_QUESTION
         else:
             go_to_next_step = False
             next_step = InterviewProcessStep.ASK_PROJECT
-            
+
         return state.model_copy(update={
             "message": out.message,
             "current_step": next_step,
@@ -192,11 +201,11 @@ class InterviewProcessingGraph:
             "message": "Sorry, there was an error processing your request. Please try again.",
         })
         
-    def _invoke_node(self, prompt, schema, session_id: str, prompt_input):
+    def _invoke_node(self, prompt, session_id, prompt_input):
         chat_history = getChatHistory(session_id)
         msgs = getattr(chat_history, "messages", [])
 
-        runnable_struct = prompt | self.llm.with_structured_output(schema)
+        runnable_struct = prompt | self.llm.with_structured_output(ProcessPromptResponse)
 
         def to_both(x):
             d = x.model_dump() if hasattr(x, "model_dump") else x
@@ -247,7 +256,7 @@ class InterviewProcessingGraph:
         msgs_after = getattr(getChatHistory(session_id), "messages", [])
         logger.info("[CHAT_HISTORY:after] sid=%s count=%d messages=%s", session_id, len(msgs_after), msgs_after)
 
-        return schema(**data["raw"])
+        return ProcessPromptResponse(**data["raw"])
 
     async def invoke(self, session_id: str, user_input: str, context: str = "") -> InterviewProcessState:
         logger.info(f"[InterviewProcessingGraph.invoke] Called:")

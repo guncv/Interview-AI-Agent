@@ -90,9 +90,8 @@ class InterviewProcessState(BaseModel):
     user_input: str
     current_step: InterviewProcessStep
     message: Optional[str] = None
-    context: Optional[str] = None
     error_message: Optional[str] = None
-    go_to_next_step: Optional[bool] = False
+    go_to_next_step: bool = False
 
 class ProcessPromptResponse(BaseModel):
     message: str
