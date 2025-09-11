@@ -5,7 +5,7 @@ from typing import Dict, Set
 from fastapi import WebSocket, WebSocketDisconnect
 from internal.adapters.log.logger import logger
 from internal.domain.enum import WebSocketMessageType, WebSocketErrorCode
-from internal.domain.models.websocket import ErrorMessage, AudioChunkMessage, WebSocketClient, SegmentStartMessage, SegmentEndMessage
+from internal.domain.models.websocket import ErrorMessage, AudioChunkMessage, WebSocketClient, SegmentStartMessage, SegmentEndMessage, StartSessionConversationMessage
 from internal.adapters.websocket.server_callback import WebSocketServerCallback
 
 class WebSocketServer:
@@ -117,6 +117,12 @@ class WebSocketServer:
             return False, f"Invalid message type: expected {expected_type}, got {data['type']}"
 
         return True, ""
+    
+    def _create_start_session_conversation_message(self, data: dict) -> StartSessionConversationMessage:
+        return StartSessionConversationMessage(
+            type=data["type"],
+            session_id=data["session_id"]
+        )
 
     def _create_segment_start_message(self, data: dict) -> SegmentStartMessage:
         return SegmentStartMessage(
@@ -157,6 +163,10 @@ class WebSocketServer:
 
                     segment_end_msg = self._create_segment_end_message(data)
                     await self.callbacks.handle_segment_end(client, segment_end_msg)
+
+                case WebSocketMessageType.START_SESSION_CONVERSATION:
+                    start_session_conversation_msg = self._create_start_session_conversation_message(data)
+                    await self.callbacks.handle_start_session_conversation(client, start_session_conversation_msg)
 
                 case _:
                     await self._send_json(client, {"type": WebSocketMessageType.ECHO, "content": data})

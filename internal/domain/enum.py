@@ -1,6 +1,7 @@
 from enum import Enum
 
 class WebSocketMessageType(str, Enum):
+    START_SESSION_CONVERSATION = "start_session_conversation"
     CONNECTION_ESTABLISHED = "connection_established"
     SEGMENT_START = "segment_start"
     SEGMENT_END = "segment_end"

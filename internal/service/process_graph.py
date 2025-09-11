@@ -82,7 +82,6 @@ class InterviewProcessingGraph:
         else:
             return "pause"
 
-
     def _intro_node(self, state: InterviewProcessState) -> InterviewProcessState:
         logger.info("[INTRO] Asking candidate to introduce themselves")
         
@@ -169,7 +168,6 @@ class InterviewProcessingGraph:
             "current_step": next_step,
             "go_to_next_step": go_to_next_step,
         })
-        
 
     def _technical_node(self, state: InterviewProcessState) -> InterviewProcessState:
         logger.info("[TECHNICAL] Asking technical question")

@@ -40,7 +40,7 @@ class WebSocketService:
             logger.error(f"[WebSocketService: handle audio chunk] Error: {e}")
             raise e
 
-    async def handle_segment_end(self, client: WebSocketClient, final_transcript: str) -> InterviewServiceResponse:
+    async def get_interviewer_response(self, client: WebSocketClient, final_transcript: str) -> InterviewServiceResponse:
         logger.info(f"[WebSocketService: handle segment end] Called:")
 
         try:
