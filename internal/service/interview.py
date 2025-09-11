@@ -6,7 +6,6 @@ from internal.service.interview_graph import InterviewGraph
 from internal.adapters.db.redis import redis_client
 from internal.adapters.vector_db.ingestion_loader import ingest_document
 from internal.domain.models.vector import VectorCollections
-from internal.domain.models.interview import FeedbackAndScoreRequest, FeedbackAndScoreResponse
 
 class InterviewService:
     def __init__(self):

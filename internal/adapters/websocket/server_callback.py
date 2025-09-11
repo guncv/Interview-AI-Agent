@@ -1,5 +1,6 @@
 from internal.adapters.log.logger import logger
 from internal.domain.models.websocket import AudioChunkMessage, WebSocketClient, SegmentStartMessage, SegmentEndMessage, StartSessionConversationMessage
+from internal.domain.models.interview import get_step_display_name
 from internal.service.websocket import WebSocketService
 import json
 
@@ -20,7 +21,8 @@ class WebSocketServerCallback:
                 "session_id": client.session_id,
                 "message": resp.message,
                 "started_at": resp.started_at,
-                "ended_at": resp.ended_at
+                "ended_at": resp.ended_at,
+                "current_state": resp.current_state
             }))
         except Exception as e:
             logger.error(f"[Websocket: handle start session conversation] Error: {e}")
@@ -82,7 +84,8 @@ class WebSocketServerCallback:
                 "session_id": client.session_id,
                 "message": resp.message,
                 "started_at": resp.started_at,
-                "ended_at": resp.ended_at
+                "ended_at": resp.ended_at,
+                "current_state": resp.current_state
             }))
 
         except Exception as e:

@@ -1,5 +1,5 @@
 from internal.adapters.log.logger import logger
-from internal.domain.models.interview import InterviewNode, InterviewState, InterviewProcessState
+from internal.domain.models.interview import InterviewNode, InterviewState, InterviewProcessState, InterviewProcessStep
 from langgraph.graph import StateGraph, END
 from internal.domain.models.vector import VectorCollections
 from internal.adapters.vector_db.factory import get_vector_store
@@ -81,10 +81,10 @@ class InterviewGraph:
             state.user_input,
             state.prompt,
             )
-                
         try:
             return state.model_copy(update={
                 "message": answer.message or "",
+                "current_step": answer.current_step,
             })
         except Exception as e:
             logger.exception("[PROCESS ANSWER] error")
@@ -94,7 +94,7 @@ class InterviewGraph:
 
     async def _store_answer_node(self, state: InterviewState) -> InterviewState:
         logger.info(f"[STORE ANSWER]: state={state}")
-        
+
         try:
             return state.model_copy(update={
                 "message": state.message or "",
@@ -113,7 +113,8 @@ class InterviewGraph:
                 user_input=user_input,
                 prompt="",
                 message=None,
-                error_message=None
+                error_message=None,
+                current_step=InterviewProcessStep.GREETING
             )
 
             result = await self.graph.ainvoke(
