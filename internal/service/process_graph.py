@@ -1,14 +1,14 @@
 from langchain_core.runnables import RunnableLambda
 from langgraph.graph import StateGraph, END
-from internal.domain.models.interview import InterviewProcessStep, InterviewProcessNode, InterviewProcessState, IntroResponse
+from internal.domain.models.interview import InterviewProcessStep, InterviewProcessNode, InterviewProcessState, ProcessPromptResponse
 from internal.adapters.log.logger import logger
-from internal.adapters.llm.state_store import acquire_lock, load_state, save_state, release_lock, clear_state
+from internal.adapters.llm.state_store import acquire_lock, load_state, save_state, release_lock, clear_state, clearMemory
 from langgraph.checkpoint.memory import MemorySaver
-from langchain_core.prompts import PromptTemplate
-from internal.service.prompts.interview_prompt import INTRO_PROMPT
-from internal.adapters.llm.loader import loadLLM
+from internal.service.prompts.interview_prompt import INTRO_PROMPT, ASK_EXPERIENCE_PROMPT, ASK_PROJECT_PROMPT, GREETING_PROMPT, ASK_TECHNICAL_PROMPT, ASK_BEHAVIORAL_PROMPT, WRAP_UP_PROMPT
+from internal.adapters.llm.loader import getChatHistory, loadLLM
 from internal.domain.models.vector import VectorCollections
 from internal.adapters.vector_db.factory import get_vector_store
+from langchain_core.runnables import RunnableWithMessageHistory
 
 class InterviewProcessingGraph:
     def __init__(self):
@@ -20,12 +20,13 @@ class InterviewProcessingGraph:
         wf = StateGraph(InterviewProcessState)
 
         wf.add_node(InterviewProcessNode.ROUTER.value, self._router_node)
+        wf.add_node(InterviewProcessNode.GREETING.value, self._greeting_node)
         wf.add_node(InterviewProcessNode.INTRO.value, self._intro_node)
         wf.add_node(InterviewProcessNode.ASK_EXPERIENCE.value, self._experience_node)
         wf.add_node(InterviewProcessNode.ASK_PROJECT.value, self._projects_node)
         wf.add_node(InterviewProcessNode.TECHNICAL_QUESTION.value, self._technical_node)
         wf.add_node(InterviewProcessNode.BEHAVIORAL_QUESTION.value, self._behavior_node)
-        wf.add_node(InterviewProcessNode.WRAP_UP.value, self._feedback_node)
+        wf.add_node(InterviewProcessNode.WRAP_UP.value, self._wrap_up_node)
         wf.add_node(InterviewProcessNode.ERROR_HANDLER.value, self._error_handler_node)
 
         wf.set_entry_point(InterviewProcessNode.ROUTER.value)
@@ -34,6 +35,7 @@ class InterviewProcessingGraph:
             InterviewProcessNode.ROUTER.value,
             self._route_from_state,
             {
+                InterviewProcessStep.GREETING: InterviewProcessNode.GREETING.value,
                 InterviewProcessStep.INTRO: InterviewProcessNode.INTRO.value,
                 InterviewProcessStep.ASK_EXPERIENCE: InterviewProcessNode.ASK_EXPERIENCE.value,
                 InterviewProcessStep.ASK_PROJECT: InterviewProcessNode.ASK_PROJECT.value,
@@ -45,6 +47,7 @@ class InterviewProcessingGraph:
         )
         
         for node in [
+            InterviewProcessNode.GREETING.value,
             InterviewProcessNode.INTRO.value,
             InterviewProcessNode.ASK_EXPERIENCE.value,
             InterviewProcessNode.ASK_PROJECT.value,
@@ -72,7 +75,37 @@ class InterviewProcessingGraph:
         return state.current_step
 
     def _after_node_continue_or_pause(self, state: InterviewProcessState) -> str:
-        return "pause"
+        if state.go_to_next_step:
+            try:
+                clearMemory(state.session_id)
+                logger.info(f"[MEMORY] Cleared memory for session {state.session_id}")
+            except Exception:
+                logger.exception(f"[MEMORY] Failed to clear memory for session {state.session_id}")
+            return "continue"
+        else:
+            return "pause"
+
+    def _greeting_node(self, state: InterviewProcessState) -> InterviewProcessState:
+        logger.info("[GREETING] Greeting the candidate")
+        
+        prompt_input = {
+            "input": state.user_input if state.user_input.strip() else "This is the start of the interview - please greet the candidate.",
+        }
+        
+        out = self._invoke_node(GREETING_PROMPT, state.session_id, prompt_input)
+        
+        if out.next_step == "INTRO":
+            next_step = InterviewProcessStep.INTRO
+            go_to_next_step = True
+        else:
+            next_step = InterviewProcessStep.GREETING
+            go_to_next_step = False
+        
+        return state.model_copy(update={
+            "message": out.message,
+            "current_step": next_step,
+            "go_to_next_step": go_to_next_step,
+        })
 
     def _intro_node(self, state: InterviewProcessState) -> InterviewProcessState:
         logger.info("[INTRO] Asking candidate to introduce themselves")
@@ -94,12 +127,17 @@ class InterviewProcessingGraph:
             "resume_info": resume_text if resume_text else "No resume information available"
         }
         
-        out = self._invoke_node(INTRO_PROMPT, IntroResponse, prompt_input)
+        out = self._invoke_node(INTRO_PROMPT, state.session_id, prompt_input)
 
         if out.next_step == "ASK_PROJECT":
             next_step = InterviewProcessStep.ASK_PROJECT
-        else:
+            go_to_next_step = True
+        elif out.next_step == "ASK_EXPERIENCE":
             next_step = InterviewProcessStep.ASK_EXPERIENCE
+            go_to_next_step = True
+        else:
+            next_step = InterviewProcessStep.INTRO
+            go_to_next_step = False
             
         logger.info(f"[INTRO] Next step determined: {next_step}")
         logger.info(f"[INTRO] Message: {out.message}")
@@ -107,45 +145,114 @@ class InterviewProcessingGraph:
         return state.model_copy(update={
             "message": out.message,
             "current_step": next_step,
+            "go_to_next_step": go_to_next_step,
         })
 
     def _experience_node(self, state: InterviewProcessState) -> InterviewProcessState:
         logger.info("[EXPERIENCE] Asking experience question")
         
+        prompt_input = {
+            "input": state.user_input if state.user_input.strip() else "This is the start of experience question - please ask the candidate to tell you about their work experience.",
+            "resume_info": "No resume information available"
+        }
+        
+        out = self._invoke_node(ASK_EXPERIENCE_PROMPT, state.session_id, prompt_input)
+        
+        if out.next_step == "ASK_PROJECT":
+            go_to_next_step = True
+            next_step = InterviewProcessStep.ASK_PROJECT
+        else:
+            go_to_next_step = False
+            next_step = InterviewProcessStep.ASK_EXPERIENCE
+
         return state.model_copy(update={
-            "message": "Can you tell me about your work experience?",
-            "current_step": InterviewProcessStep.ASK_PROJECT,
+            "message": out.message,
+            "current_step": next_step,
+            "go_to_next_step": go_to_next_step,
         })
 
     def _projects_node(self, state: InterviewProcessState) -> InterviewProcessState:
         logger.info("[PROJECTS] Asking projects question")
         
+        prompt_input = {
+            "input": state.user_input if state.user_input.strip() else "This is the start of projects question - please ask the candidate to tell you about their projects.",
+            "resume_info": "No resume information available"
+        }
+        
+        out = self._invoke_node(ASK_PROJECT_PROMPT, state.session_id, prompt_input)
+
+        if out.next_step == "TECHNICAL_QUESTION":
+            go_to_next_step = True
+            next_step = InterviewProcessStep.TECHNICAL_QUESTION
+        else:
+            go_to_next_step = False
+            next_step = InterviewProcessStep.ASK_PROJECT
+
         return state.model_copy(update={
-            "message": "Tell me about a project you're proud of.",
-            "current_step": InterviewProcessStep.TECHNICAL_QUESTION,
+            "message": out.message,
+            "current_step": next_step,
+            "go_to_next_step": go_to_next_step,
         })
 
     def _technical_node(self, state: InterviewProcessState) -> InterviewProcessState:
         logger.info("[TECHNICAL] Asking technical question")
         
+        prompt_input = {
+            "input": state.user_input if state.user_input.strip() else "This is the start of technical question - please ask the candidate to tell you about their technical skills.",
+            "resume_info": "No resume information available"
+        }
+        
+        out = self._invoke_node(ASK_TECHNICAL_PROMPT, state.session_id, prompt_input)
+
+        if out.next_step == "BEHAVIORAL_QUESTION":
+            go_to_next_step = True
+            next_step = InterviewProcessStep.BEHAVIORAL_QUESTION
+        else:
+            go_to_next_step = False
+            next_step = InterviewProcessStep.TECHNICAL_QUESTION
+
         return state.model_copy(update={
-            "message": "How would you debug a bug without help from teammates?",
-            "current_step": InterviewProcessStep.BEHAVIORAL_QUESTION,
+            "message": out.message,
+            "current_step": next_step,
+            "go_to_next_step": go_to_next_step,
         })
 
     def _behavior_node(self, state: InterviewProcessState) -> InterviewProcessState:
         logger.info("[BEHAVIOR] Asking behavioral question")
         
+        prompt_input = {
+            "input": state.user_input if state.user_input.strip() else "This is the start of behavioral question - please ask the candidate to tell you about a time they had to deal with a difficult situation.",
+            "resume_info": "No resume information available"
+        }
+        
+        out = self._invoke_node(ASK_BEHAVIORAL_PROMPT, state.session_id, prompt_input)
+        
+        if out.next_step == "WRAP_UP":
+            go_to_next_step = True
+            next_step = InterviewProcessStep.WRAP_UP
+        else:
+            go_to_next_step = False
+            next_step = InterviewProcessStep.BEHAVIORAL_QUESTION
+
         return state.model_copy(update={
-            "message": "Tell me about a time you had to deal with a difficult situation.",
-            "current_step": InterviewProcessStep.WRAP_UP,
+            "message": out.message,
+            "current_step": next_step,
+            "go_to_next_step": go_to_next_step,
         })
 
-    def _feedback_node(self, state: InterviewProcessState) -> InterviewProcessState:
-        logger.info("[FEEDBACK] Wrapping up")
+    def _wrap_up_node(self, state: InterviewProcessState) -> InterviewProcessState:
+        logger.info("[WRAP_UP] Wrapping up")
+        
+        prompt_input = {
+            "input": state.user_input if state.user_input.strip() else "This is the start of wrap up interview - please say goodbye to the candidate.",
+        }
+        
+        out = self._invoke_node(WRAP_UP_PROMPT, state.session_id, prompt_input)
         
         return state.model_copy(update={
-            "message": "Great job! That concludes this part of the interview.",
+            "message": out.message,
+            "current_step": InterviewProcessStep.WRAP_UP,
+            "go_to_next_step": True,
         })
 
     def _error_handler_node(self, state: InterviewProcessState) -> InterviewProcessState:
@@ -154,9 +261,12 @@ class InterviewProcessingGraph:
         return state.model_copy(update={
             "message": "Sorry, there was an error processing your request. Please try again.",
         })
-    
-    def _invoke_node(self, prompt, schema, user_input: str):
-        runnable_struct = prompt | self.llm.with_structured_output(schema)
+        
+    def _invoke_node(self, prompt, session_id, prompt_input):
+        chat_history = getChatHistory(session_id)
+        msgs = getattr(chat_history, "messages", [])
+
+        runnable_struct = prompt | self.llm.with_structured_output(ProcessPromptResponse)
 
         def to_both(x):
             d = x.model_dump() if hasattr(x, "model_dump") else x
@@ -168,9 +278,46 @@ class InterviewProcessingGraph:
 
         runnable_both = runnable_struct | RunnableLambda(to_both)
 
-        data = runnable_both.invoke(user_input)
+        def _get_history_for_langchain(config):
+            try:
+                if isinstance(config, str):
+                    sid = config
+                elif isinstance(config, dict):
+                    sid = config.get("configurable", {}).get("session_id") \
+                        or config.get("configurable", {}).get("thread_id") \
+                        or config.get("session_id") \
+                        or config.get("thread_id") \
+                        or session_id
+                else:
+                    sid = session_id
+            except Exception:
+                sid = session_id
 
-        return schema(**data["raw"])
+            return getChatHistory(sid)
+
+
+        chain = RunnableWithMessageHistory(
+            runnable=runnable_both,
+            get_session_history=_get_history_for_langchain,
+            input_messages_key="input",
+            history_messages_key="history",
+            output_messages_key="output",
+        )
+
+        if isinstance(prompt_input, str):
+            invoke_data = {"input": prompt_input}
+        else:
+            invoke_data = prompt_input
+
+        data = chain.invoke(
+            invoke_data,
+            config={"configurable": {"session_id": session_id}},
+        )
+
+        msgs_after = getattr(getChatHistory(session_id), "messages", [])
+        logger.info("[CHAT_HISTORY:after] sid=%s count=%d messages=%s", session_id, len(msgs_after), msgs_after)
+
+        return ProcessPromptResponse(**data["raw"])
 
     async def invoke(self, session_id: str, user_input: str, context: str = "") -> InterviewProcessState:
         logger.info(f"[InterviewProcessingGraph.invoke] Called:")
@@ -180,13 +327,16 @@ class InterviewProcessingGraph:
 
             if prev_state:
                 initial_state = prev_state.model_copy(
-                    update={"user_input": user_input,"context": context}
+                    update={
+                        "user_input": user_input,
+                        "context": context
+                    }
                 )
             else:
                 initial_state = InterviewProcessState(
                     session_id=session_id,
                     user_input=user_input,
-                    current_step=InterviewProcessStep.INTRO,
+                    current_step=InterviewProcessStep.GREETING,
                     message=None,
                     context=context,
                     error_message=None,

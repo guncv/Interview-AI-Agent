@@ -19,13 +19,16 @@ class AudioChunkHeader:
     session_id: str
     segment_id: str
 
-
 @dataclass
 class SegmentStartMessage:
     type: str
     session_id: str
     segment_id: str
 
+@dataclass
+class StartSessionConversationMessage:
+    type: str
+    session_id: str
 
 @dataclass
 class SegmentEndMessage:

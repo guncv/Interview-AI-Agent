@@ -1,3 +1,4 @@
+import string
 from pydantic import BaseModel
 from typing import List, Optional
 from enum import Enum
@@ -54,6 +55,7 @@ class InterviewStep(Enum):
     STORE_ANSWER = 3
     END_TURN = 4
     ERROR = -1
+    
 class InterviewNode(Enum):
     ROUTER = "router"
     QUERY_VECTOR_DB = "query_vector_db"
@@ -62,48 +64,64 @@ class InterviewNode(Enum):
     END_TURN = "end_turn"
     ERROR_HANDLER = "error_handler"
     
+class InterviewProcessStep(Enum):
+    ROUTER = 0
+    GREETING = 1
+    INTRO = 2
+    ASK_EXPERIENCE = 3
+    ASK_PROJECT = 4
+    TECHNICAL_QUESTION = 5
+    BEHAVIORAL_QUESTION = 6
+    WRAP_UP = 7
+    ERROR_HANDLER = -1
+    
 class InterviewState(BaseModel):
     session_id: str
     user_input: str
     prompt: str
     message: Optional[str] = None
     error_message: Optional[str] = None
+    current_step: InterviewProcessStep
 
 class InterviewServiceResponse(BaseModel):
     message: str = None
     started_at: str = None
     ended_at: str = None
-
-class InterviewProcessStep(Enum):
-    ROUTER = 1
-    INTRO = 2
-    ASK_EXPERIENCE = 3
-    ASK_PROJECT = 4
-    TECHNICAL_QUESTION = 5
-    BEHAVIORAL_QUESTION = 6
-    CANDIDATE_QUESTIONS = 7
-    WRAP_UP = 8
-    ERROR_HANDLER = 9
+    current_state: str
 
 class InterviewProcessState(BaseModel):
     session_id: str
     user_input: str
     current_step: InterviewProcessStep
     message: Optional[str] = None
-    context: Optional[str] = None
     error_message: Optional[str] = None
+    go_to_next_step: bool = False
 
-class IntroResponse(BaseModel):
+class ProcessPromptResponse(BaseModel):
     message: str
     next_step: str
+    go_to_next_step: bool
 
 class InterviewProcessNode(Enum):
     ROUTER = "router"
+    GREETING = "greeting"
     INTRO = "intro"
     ASK_EXPERIENCE = "ask_experience"
     ASK_PROJECT = "ask_project"
     TECHNICAL_QUESTION = "technical_question"
     BEHAVIORAL_QUESTION = "behavioral_question"
-    CANDIDATE_QUESTIONS = "candidate_questions"
     WRAP_UP = "wrap_up"
     ERROR_HANDLER = "error_handler"
+
+INTERVIEW_PROCESS_STEP_MAPPING = {
+    InterviewProcessStep.GREETING: "Greeting",
+    InterviewProcessStep.INTRO: "Intro",
+    InterviewProcessStep.ASK_EXPERIENCE: "Experience",
+    InterviewProcessStep.ASK_PROJECT: "Project",
+    InterviewProcessStep.TECHNICAL_QUESTION: "Technical Question",
+    InterviewProcessStep.BEHAVIORAL_QUESTION: "Behavioral Question",
+    InterviewProcessStep.WRAP_UP: "Wrap Up",
+}
+
+def get_step_display_name(step: InterviewProcessStep) -> str:
+    return INTERVIEW_PROCESS_STEP_MAPPING.get(step, "Unknown")
