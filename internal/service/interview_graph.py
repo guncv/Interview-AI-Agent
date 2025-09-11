@@ -79,11 +79,10 @@ class InterviewGraph:
         answer = await self.process_graph.invoke(
             state.session_id,
             state.user_input,
-            state.prompt,
             )
         try:
             return state.model_copy(update={
-                "message": answer.message or "",
+                "message": answer.interview_process_messages or [],
                 "current_step": answer.current_step,
             })
         except Exception as e:
@@ -96,9 +95,7 @@ class InterviewGraph:
         logger.info(f"[STORE ANSWER]: state={state}")
 
         try:
-            return state.model_copy(update={
-                "message": state.message or "",
-            })
+            return state
         except Exception as e:
             logger.exception("[STORE ANSWER] error")
             return state.model_copy(update={
@@ -112,7 +109,7 @@ class InterviewGraph:
                 session_id=session_id,
                 user_input=user_input,
                 prompt="",
-                message=None,
+                message=[],
                 error_message=None,
                 current_step=InterviewProcessStep.GREETING
             )
@@ -127,7 +124,7 @@ class InterviewGraph:
 
             normalized = InterviewState(**result) if isinstance(result, dict) else result
 
-            logger.info(f"[InterviewGraph.invoke]: message={normalized.message!r}")
+            logger.info(f"[InterviewGraph.invoke]: message={normalized.message}")
 
             if normalized.error_message:
                 logger.error(f"[InterviewGraph.invoke] error: {normalized.error_message}")
@@ -135,7 +132,7 @@ class InterviewGraph:
                     error_code=InterviewSimulationErrorCodes.INTERNAL_ERROR,
                     description=f"[GRAPH_ERROR]: {normalized.error_message}"
                 )
-
+            
             return normalized
 
         except Exception as e:

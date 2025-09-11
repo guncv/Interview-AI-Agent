@@ -4,8 +4,6 @@ from internal.adapters.db.redis import redis_client
 from internal.adapters.stt.whisper_stt import WhisperSpeechToText
 from internal.service.interview_graph import InterviewGraph
 from internal.domain.models.interview import InterviewServiceResponse
-from datetime import datetime, timezone
-from internal.domain.models.interview import get_step_display_name
 
 class WebSocketService:
     def __init__(self):
@@ -45,18 +43,9 @@ class WebSocketService:
         logger.info(f"[WebSocketService: handle segment end] Called:")
 
         try:
-            started_at = datetime.now(timezone.utc).isoformat()
             message_data = await self.interview_graph.invoke(client.session_id, final_transcript)
-            ended_at = datetime.now(timezone.utc).isoformat()
-            
-            current_step = get_step_display_name(message_data.current_step)
-            
-            resp = InterviewServiceResponse(
-                message=message_data.message,
-                started_at=started_at,
-                ended_at=ended_at,
-                current_state=current_step
-            )
+            logger.info(f"[WebSocketService: handle segment end] Message data: {message_data}")
+            resp = InterviewServiceResponse(content=message_data.message)
             return resp
 
 

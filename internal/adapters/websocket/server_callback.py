@@ -1,6 +1,5 @@
 from internal.adapters.log.logger import logger
 from internal.domain.models.websocket import AudioChunkMessage, WebSocketClient, SegmentStartMessage, SegmentEndMessage, StartSessionConversationMessage
-from internal.domain.models.interview import get_step_display_name
 from internal.service.websocket import WebSocketService
 import json
 
@@ -15,15 +14,17 @@ class WebSocketServerCallback:
 
             resp = await self.websocket_service.get_interviewer_response(client, "Let's Start the conversation")
             
-            await client.websocket.send_text(json.dumps({
-                "type": "interviewer_response",
-                "author": "interviewer",
-                "session_id": client.session_id,
-                "message": resp.message,
-                "started_at": resp.started_at,
-                "ended_at": resp.ended_at,
-                "current_state": resp.current_state
-            }))
+            for message in resp.content:
+                await client.websocket.send_text(json.dumps({
+                    "type": "interviewer_response",
+                    "author": "interviewer",
+                    "session_id": client.session_id,
+                    "message": message.message,
+                    "started_at": message.started_at,
+                    "ended_at": message.ended_at,
+                    "current_state": message.current_state.value
+                }))
+            
         except Exception as e:
             logger.error(f"[Websocket: handle start session conversation] Error: {e}")
             raise e
@@ -52,6 +53,7 @@ class WebSocketServerCallback:
 
     async def handle_segment_end(self, client: WebSocketClient, request: SegmentEndMessage):
         try:
+            logger.info(f"[WebSocketService: handle segment end] Request: {request}")
             if request.session_id != client.session_id:
                 raise ValueError(f"Session ID mismatch: {request.session_id} != {client.session_id}")
 
@@ -76,17 +78,16 @@ class WebSocketServerCallback:
             
             resp = await self.websocket_service.get_interviewer_response(client, final_transcript)
             
-            logger.info(f"[WebSocketService: handle segment end] Response: {resp}")
-            
-            await client.websocket.send_text(json.dumps({
-                "type": "interviewer_response",
-                "author": "interviewer",
-                "session_id": client.session_id,
-                "message": resp.message,
-                "started_at": resp.started_at,
-                "ended_at": resp.ended_at,
-                "current_state": resp.current_state
-            }))
+            for message in resp.content:
+                await client.websocket.send_text(json.dumps({
+                    "type": "interviewer_response",
+                    "author": "interviewer",
+                    "session_id": client.session_id,
+                    "message": message.message,
+                    "started_at": message.started_at,
+                    "ended_at": message.ended_at,
+                    "current_state": message.current_state.value
+                }))
 
         except Exception as e:
             logger.error(f"[Websocket: handle segment end]: {e}")
