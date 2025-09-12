@@ -116,5 +116,9 @@ stt:
   gcp_location: "${GCP_LOCATION}"
   whisper_api_key: "${WHISPER_API_KEY}"
 
+tts:
+  openai_api_key: "${TTS_OPENAI_API_KEY}"
+  voice: "${TTS_VOICE:verse}"
+
 redis:
   url: "${REDIS_URL:redis://localhost:6379/0}"

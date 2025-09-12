@@ -47,3 +47,9 @@ class AudioChunkMessage:
     type: str
     segment_id: str
     audio_data: bytes
+
+@dataclass
+class TTSAudioChunking:
+    type: str
+    session_id: str
+    audio: bytes

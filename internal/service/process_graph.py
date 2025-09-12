@@ -11,13 +11,17 @@ from internal.adapters.vector_db.factory import get_vector_store
 from langchain_core.runnables import RunnableWithMessageHistory
 from datetime import datetime, timezone
 from langchain_core.prompts import ChatPromptTemplate
+from internal.domain.models.websocket import WebSocketClient
+from internal.service.websocket import WebSocketService
+import asyncio
 
 class InterviewProcessingGraph:
     def __init__(self):
         self.llm = loadLLM("interview")
         self.graph = self._build_graph()
         self.state_checkpointer = MemorySaver()
-
+        self.websocket_service = WebSocketService()
+        
     def _build_graph(self):
         wf = StateGraph(InterviewProcessState)
 
@@ -77,6 +81,19 @@ class InterviewProcessingGraph:
         return state.current_step
 
     def _after_node_continue_or_pause(self, state: InterviewProcessState) -> str:
+        if len(state.interview_process_messages) > 0:
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = asyncio.get_event_loop()
+
+            loop.create_task(
+                self.websocket_service.handle_tts(
+                    state.client,
+                    state.interview_process_messages[-1].message,
+                )
+            )
+                
         if state.go_to_next_step:
             try:
                 clearMemory(state.session_id)
@@ -320,7 +337,7 @@ class InterviewProcessingGraph:
 
         return ProcessPromptResponse(**data["raw"])
 
-    async def invoke(self, session_id: str, user_input: str) -> InterviewProcessState:
+    async def invoke(self, session_id: str, user_input: str, client: WebSocketClient) -> InterviewProcessState:
         logger.info(f"[InterviewProcessingGraph.invoke] Called:")
         
         locked = acquire_lock(session_id)
@@ -331,7 +348,8 @@ class InterviewProcessingGraph:
                 initial_state = prev_state.model_copy(
                     update={
                         "user_input": user_input,
-                        "interview_process_messages": []
+                        "interview_process_messages": [],
+                        "client": client
                     }
                 )
             else:
@@ -341,6 +359,7 @@ class InterviewProcessingGraph:
                     current_step=InterviewProcessStep.GREETING,
                     interview_process_messages=[],
                     error_message=None,
+                    client=client
                 )
 
             result = await self.graph.ainvoke(initial_state)
@@ -361,6 +380,7 @@ class InterviewProcessingGraph:
                 current_step=InterviewProcessStep.ERROR_HANDLER,
                 interview_process_messages=[],
                 error_message=str(e),
+                client=client
             )
             save_state(session_id, err)
             return err

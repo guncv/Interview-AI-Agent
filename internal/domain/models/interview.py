@@ -2,6 +2,7 @@ import string
 from pydantic import BaseModel
 from typing import List, Optional
 from enum import Enum
+from internal.domain.models.websocket import WebSocketClient
 
 class HealthCheckResponse(BaseModel):
     message: str
@@ -93,24 +94,30 @@ class InterviewProcessMessage(BaseModel):
     current_state: InterviewProcessNode
 
 class InterviewState(BaseModel):
+    model_config = {"arbitrary_types_allowed": True}
+    
     session_id: str
     user_input: str
     prompt: str
     message: List[InterviewProcessMessage]
     error_message: Optional[str] = None
     current_step: InterviewProcessStep
+    client: WebSocketClient
 
 class InterviewServiceResponse(BaseModel):
     content: List[InterviewProcessMessage]
 
 class InterviewProcessState(BaseModel):
+    model_config = {"arbitrary_types_allowed": True}
+    
     session_id: str
     user_input: str
     current_step: InterviewProcessStep
     interview_process_messages: List[InterviewProcessMessage]
     error_message: Optional[str] = None
     go_to_next_step: bool = False
-
+    client: WebSocketClient
+    
 class ProcessPromptResponse(BaseModel):
     message: str
     next_step: str

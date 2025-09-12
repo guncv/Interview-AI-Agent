@@ -22,7 +22,7 @@ class InterviewService:
                 e = InterviewSimulationException(error_code=InterviewSimulationErrorCodes.INTERNAL_ERROR, description=f"[{type(e).__name__}]: {str(e)}")
             logger.error(f"[Health Check Service Error]: {e}")
             e.raise_HTTPException()
-            
+
     async def interview(self, request: InterviewRequest):
         logger.info(f"[Interview Service Called: ]")
         try:

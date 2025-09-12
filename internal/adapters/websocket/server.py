@@ -5,7 +5,7 @@ from typing import Dict, Set
 from fastapi import WebSocket, WebSocketDisconnect
 from internal.adapters.log.logger import logger
 from internal.domain.enum import WebSocketMessageType, WebSocketErrorCode
-from internal.domain.models.websocket import ErrorMessage, AudioChunkMessage, WebSocketClient, SegmentStartMessage, SegmentEndMessage, StartSessionConversationMessage
+from internal.domain.models.websocket import ErrorMessage, AudioChunkMessage, WebSocketClient, SegmentStartMessage, SegmentEndMessage, StartSessionConversationMessage, TTSAudioChunking
 from internal.adapters.websocket.server_callback import WebSocketServerCallback
 
 class WebSocketServer:

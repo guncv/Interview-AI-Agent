@@ -5,6 +5,7 @@ from internal.domain.models.vector import VectorCollections
 from internal.adapters.vector_db.factory import get_vector_store
 from internal.shared.exception import InterviewSimulationException, InterviewSimulationErrorCodes
 from internal.service.process_graph import InterviewProcessingGraph
+from internal.domain.models.websocket import WebSocketClient
 
 class InterviewGraph:
     def __init__(self):
@@ -79,6 +80,7 @@ class InterviewGraph:
         answer = await self.process_graph.invoke(
             state.session_id,
             state.user_input,
+            state.client
             )
         try:
             return state.model_copy(update={
@@ -102,7 +104,7 @@ class InterviewGraph:
                 "error_message": str(e),
             })
 
-    async def invoke(self, session_id: str, user_input: str) -> InterviewState:
+    async def invoke(self, session_id: str, user_input: str, client: WebSocketClient) -> InterviewState:
         logger.info(f"[InterviewGraph.invoke]: session_id={session_id}, user_input={user_input}")
         try:
             initial_state = InterviewState(
@@ -111,7 +113,8 @@ class InterviewGraph:
                 prompt="",
                 message=[],
                 error_message=None,
-                current_step=InterviewProcessStep.GREETING
+                current_step=InterviewProcessStep.GREETING,
+                client=client
             )
 
             result = await self.graph.ainvoke(

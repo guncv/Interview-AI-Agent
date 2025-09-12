@@ -31,7 +31,7 @@ def save_state(session_id: str, state: InterviewProcessState) -> None:
             return obj.value
         raise TypeError(f'Object of type {obj.__class__.__name__} is not JSON serializable')
     
-    state_dict = state.dict()
+    state_dict = state.model_dump(exclude={"client"})
     r.setex(_state_key(session_id), STATE_TTL_SECONDS, json.dumps(state_dict, ensure_ascii=False, default=enum_converter))
 
 def load_state(session_id: str) -> Optional[InterviewProcessState]:
