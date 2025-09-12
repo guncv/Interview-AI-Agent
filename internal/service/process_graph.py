@@ -119,6 +119,7 @@ class InterviewProcessingGraph:
             "resume_info": resume_text if resume_text else "No resume information available",
         }
 
+        start_date = datetime.now(timezone.utc).isoformat()
         out = self._invoke_node(INTRO_PROMPT, state.session_id, prompt_input)
 
         if out.next_step == "ASK_PROJECT":
@@ -131,7 +132,7 @@ class InterviewProcessingGraph:
             next_step = InterviewProcessStep.INTRO
             go_to_next_step = False
 
-        return self._update_state_with_message(state, out, InterviewProcessNode.INTRO, InterviewProcessStep.INTRO, next_step, go_to_next_step)
+        return self._update_state_with_message(state, start_date, out, InterviewProcessNode.INTRO, next_step, go_to_next_step)
 
     def _experience_node(self, state: InterviewProcessState) -> InterviewProcessState:
         logger.info("[EXPERIENCE] Asking candidate to tell you about their work experience")
@@ -251,7 +252,7 @@ class InterviewProcessingGraph:
                 ended_at=now,
                 current_state=current_state,
             )
-
+    
         return state.model_copy(
             update={
                 "interview_process_messages": state.interview_process_messages
@@ -295,7 +296,6 @@ class InterviewProcessingGraph:
                 sid = session_id
 
             return getChatHistory(sid)
-
 
         chain = RunnableWithMessageHistory(
             runnable=runnable_both,
