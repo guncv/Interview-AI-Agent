@@ -93,6 +93,15 @@ class ChromaVectorStore(VectorStore):
         if self._embedder is None:
             raise ValueError("No embedder configured on ChromVectorStore.")
         
-        vec = self._embedder([text])[0]
+        if not text or not text.strip():
+            logger.warning("Empty text provided for vector search, returning empty result")
+            return QueryResult(items=[])
+        
+        embeddings = self._embedder([text])
+        if not embeddings:
+            logger.warning("No embeddings generated for text, returning empty result")
+            return QueryResult(items=[])
+            
+        vec = embeddings[0]
         logger.info(f"Querying vector store by text: {text[:100]}...")
         return self.query_by_vector(vector=vec, k=k, include_documents=include_documents)

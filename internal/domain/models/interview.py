@@ -45,6 +45,8 @@ class FeedbackAndScoreResponse(BaseModel):
     overall_score: float
     overall_feedback: str
     criteria_scores: List[CriteriaScore]
+    improvement_sentence: str
+    llm_model: str
     
 class QueryVectorDBRes(BaseModel):
     message: str
@@ -75,53 +77,32 @@ class InterviewProcessStep(Enum):
     WRAP_UP = 7
     ERROR_HANDLER = -1
     
+class InterviewProcessNode(Enum):
+    ROUTER = "Router"
+    GREETING = "Greeting"
+    INTRO = "Intro"
+    ASK_EXPERIENCE = "Experience"
+    ASK_PROJECT = "Project"
+    TECHNICAL_QUESTION = "Technical Question"
+    BEHAVIORAL_QUESTION = "Behavioral Question"
+    WRAP_UP = "Wrap Up"
+    ERROR_HANDLER = "Unknown"
+
 class InterviewState(BaseModel):
+    model_config = {"arbitrary_types_allowed": True}
+    
     session_id: str
     user_input: str
     prompt: str
-    message: Optional[str] = None
-    error_message: Optional[str] = None
-    current_step: InterviewProcessStep
-
-class InterviewServiceResponse(BaseModel):
-    message: str = None
-    started_at: str = None
-    ended_at: str = None
-    current_state: str
-
-class InterviewProcessState(BaseModel):
-    session_id: str
-    user_input: str
-    current_step: InterviewProcessStep
-    message: Optional[str] = None
-    error_message: Optional[str] = None
+    message: str
+    current_storing_node: InterviewProcessNode
+    start_at: str
+    end_at: str
     go_to_next_step: bool = False
-
+    error_message: Optional[str] = None
+    current_step: InterviewProcessStep
+    
 class ProcessPromptResponse(BaseModel):
     message: str
     next_step: str
     go_to_next_step: bool
-
-class InterviewProcessNode(Enum):
-    ROUTER = "router"
-    GREETING = "greeting"
-    INTRO = "intro"
-    ASK_EXPERIENCE = "ask_experience"
-    ASK_PROJECT = "ask_project"
-    TECHNICAL_QUESTION = "technical_question"
-    BEHAVIORAL_QUESTION = "behavioral_question"
-    WRAP_UP = "wrap_up"
-    ERROR_HANDLER = "error_handler"
-
-INTERVIEW_PROCESS_STEP_MAPPING = {
-    InterviewProcessStep.GREETING: "Greeting",
-    InterviewProcessStep.INTRO: "Intro",
-    InterviewProcessStep.ASK_EXPERIENCE: "Experience",
-    InterviewProcessStep.ASK_PROJECT: "Project",
-    InterviewProcessStep.TECHNICAL_QUESTION: "Technical Question",
-    InterviewProcessStep.BEHAVIORAL_QUESTION: "Behavioral Question",
-    InterviewProcessStep.WRAP_UP: "Wrap Up",
-}
-
-def get_step_display_name(step: InterviewProcessStep) -> str:
-    return INTERVIEW_PROCESS_STEP_MAPPING.get(step, "Unknown")

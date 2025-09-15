@@ -6,7 +6,7 @@ from internal.service.prompts.feedback_prompt import FEEDBACK_AND_SCORING_PROMPT
 from internal.shared.exception import InterviewSimulationException
 from internal.domain.exception import InterviewSimulationErrorCodes
 from internal.adapters.log.logger import logger
-from internal.adapters.llm.loader import loadLLM
+from internal.adapters.llm.loader import loadLLM, getLLMModel
 
 def build_criteria_descriptions(criteria_list):
     return "\n".join(
@@ -17,6 +17,7 @@ def build_criteria_descriptions(criteria_list):
 class FeedbackAndScoreService:
     def __init__(self):
         self.llm = loadLLM("interview")
+        self.llm_model = getLLMModel()
         self.parser = JsonOutputParser()
 
         self.prompt = FEEDBACK_AND_SCORING_PROMPT
@@ -79,7 +80,9 @@ class FeedbackAndScoreService:
             return FeedbackAndScoreResponse(
                 overall_score=formatted_score,
                 overall_feedback=result["overall_feedback"],
-                criteria_scores=criteria_scores
+                criteria_scores=criteria_scores,
+                improvement_sentence=result["improvement_sentence"],
+                llm_model=self.llm_model
             )
 
         except Exception as e:

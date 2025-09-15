@@ -3,7 +3,7 @@ import os
 import os, json
 from typing import Optional
 from redis import Redis
-from internal.domain.models.interview import InterviewProcessState
+from internal.domain.models.interview import InterviewState
 from enum import Enum
 from langchain_community.chat_message_histories import (
     ChatMessageHistory,
@@ -25,20 +25,42 @@ r = Redis.from_url(REDIS_URL, decode_responses=True)
 def _state_key(session_id: str) -> str:
     return f"{STATE_PREFIX}:{session_id}"
 
-def save_state(session_id: str, state: InterviewProcessState) -> None:
+def save_state(session_id: str, state: InterviewState) -> None:
     def enum_converter(obj):
         if isinstance(obj, Enum):
             return obj.value
         raise TypeError(f'Object of type {obj.__class__.__name__} is not JSON serializable')
     
-    state_dict = state.dict()
+    state_dict = state.model_dump(exclude={"client"})
     r.setex(_state_key(session_id), STATE_TTL_SECONDS, json.dumps(state_dict, ensure_ascii=False, default=enum_converter))
 
-def load_state(session_id: str) -> Optional[InterviewProcessState]:
+def load_state(session_id: str) -> Optional[InterviewState]:
     raw = r.get(_state_key(session_id))
     if not raw:
         return None
-    return InterviewProcessState(**json.loads(raw))
+    
+    # Load the state data from Redis
+    state_data = json.loads(raw)
+    
+    # The client field is excluded when saving and will be provided fresh during invoke
+    # We need to create a temporary client to satisfy Pydantic validation
+    # This gets replaced immediately in the invoke method
+    if 'client' not in state_data:
+        from internal.domain.models.websocket import WebSocketClient
+        from fastapi import WebSocket
+        
+        # Create a temporary WebSocket client that will be replaced
+        temp_websocket = None  # This will be replaced before use
+        temp_client = WebSocketClient(
+            websocket=temp_websocket,
+            user_id="temp",
+            session_id=session_id,
+            resume_id="temp",
+            is_connected=False
+        )
+        state_data['client'] = temp_client
+    
+    return InterviewState(**state_data)
 
 def clear_state(session_id: str) -> None:
     r.delete(_state_key(session_id))
