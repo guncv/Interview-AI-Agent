@@ -78,6 +78,9 @@ class LLM:
                 )
         else:
             raise ValueError("Unsupported LLM provider")
+    
+    def get_llm_model(self):
+        return self.model
 
 def getChatHistory(session_id: str) -> ChatMessageHistory:
     logger.info(f"[getChatHistory: Called]: {session_id}")
@@ -88,6 +91,10 @@ llm = LLM()
 def loadLLM(type: str):
     logger.info(f"[loadLLM: Called]: {type}")
     return llm.loadLLM(type)
+
+def getLLMModel():
+    logger.info(f"[getLLMModel: Called]: {type}")
+    return llm.get_llm_model()
 
 prompt = ChatPromptTemplate.from_messages([
     ("system", "{task_prompt}"),

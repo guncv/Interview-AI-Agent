@@ -45,6 +45,8 @@ class FeedbackAndScoreResponse(BaseModel):
     overall_score: float
     overall_feedback: str
     criteria_scores: List[CriteriaScore]
+    improvement_sentence: str
+    llm_model: str
     
 class QueryVectorDBRes(BaseModel):
     message: str

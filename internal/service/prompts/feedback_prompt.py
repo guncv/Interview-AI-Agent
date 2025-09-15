@@ -36,7 +36,8 @@ FEEDBACK_AND_SCORING_PROMPT = ChatPromptTemplate.from_template("""
         "criterion_feedback": "<brief feedback for this criterion>"
         }},
         ...
-    ]
+    ],
+    "improvement_sentence": "<a corrected and improved version of the candidate's response as a complete sentence>"
     }}
 
     ## Scoring and Feedback Guidelines
@@ -44,4 +45,5 @@ FEEDBACK_AND_SCORING_PROMPT = ChatPromptTemplate.from_template("""
     - Be **fair**, **concise**, and **specific** in your feedback.
     - If the response is incomplete, unclear, or weak, lower the score and explain why.
     - Always include feedback and a score for **every criterion**.
+    - Provide a **corrected and improved version** of the candidate's response as a complete, well-structured sentence.
 """)

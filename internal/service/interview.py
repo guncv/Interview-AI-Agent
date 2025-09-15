@@ -19,21 +19,25 @@ class InterviewService:
             return resp
         except (InterviewSimulationException, Exception) as e:
             if type(e) != InterviewSimulationException:
-                e = InterviewSimulationException(error_code=InterviewSimulationErrorCodes.INTERNAL_ERROR, description=f"[{type(e).__name__}]: {str(e)}")
+                e = InterviewSimulationException(
+                    error_code=InterviewSimulationErrorCodes.INTERNAL_ERROR,
+                    description=f"[{type(e).__name__}]: {str(e)}")
             logger.error(f"[Health Check Service Error]: {e}")
             e.raise_HTTPException()
 
     async def interview(self, request: InterviewRequest):
-        logger.info(f"[Interview Service Called: ]")
+        logger.info(f"[Interview Service Called:]")
         try:
             resp = self.interview_graph.invoke(request.session_id, request.user_input)
             redis_client.save_interview_state(request.session_id, resp)
-            
+
             return resp
         
         except (InterviewSimulationException, Exception) as e:
             if type(e) != InterviewSimulationException:
-                e = InterviewSimulationException(error_code=InterviewSimulationErrorCodes.INTERNAL_ERROR, description=f"[{type(e).__name__}]: {str(e)}")
+                e = InterviewSimulationException(
+                    error_code=InterviewSimulationErrorCodes.INTERNAL_ERROR,
+                    description=f"[{type(e).__name__}]: {str(e)}")
             logger.error(f"[Interview Service Error]: {e}")
             e.raise_HTTPException()
     
