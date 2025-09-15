@@ -47,6 +47,7 @@ class VectorStore(ABC):
         vector: Sequence[float],
         k: int = 5,
         include_documents: bool = True,
+        session_id: str = None,
     ) -> QueryResult:
         raise NotImplementedError
 
@@ -57,6 +58,7 @@ class VectorStore(ABC):
         text: str,
         k: int = 5,
         include_documents: bool = True,
+        session_id: str = None,
     ) -> QueryResult:
         raise NotImplementedError
 

@@ -89,12 +89,13 @@ class PineconeVectorStore(VectorStore):
         return int(stats.get("total_vector_count", 0))
 
     def query_by_vector(
-        self, *, vector: Sequence[float], k: int = 5, include_documents: bool = True
+        self, *, vector: Sequence[float], k: int = 5, include_documents: bool = True, session_id: str = None
     ) -> QueryResult:
         res = self._index.query(
             vector=list(vector),
             top_k=k,
             include_metadata=True,
+            where={"session_id": session_id} if session_id else None,
         )
         items: list[QueryItem] = []
         for match in getattr(res, "matches", []) or []:
@@ -107,9 +108,9 @@ class PineconeVectorStore(VectorStore):
         return QueryResult(items=items)
 
     def query_by_text(
-        self, *, text: str, k: int = 5, include_documents: bool = True
+        self, *, text: str, k: int = 5, include_documents: bool = True, session_id: str = None
     ) -> QueryResult:
         if self._embedder is None:
             raise ValueError("No embedder configured on PineVectorStore.")
         vec = self._embedder([text])[0]
-        return self.query_by_vector(vector=vec, k=k, include_documents=include_documents)
+        return self.query_by_vector(vector=vec, k=k, include_documents=include_documents, session_id=session_id)

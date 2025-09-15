@@ -101,38 +101,19 @@ class InterviewProcessingGraph:
 
     def _intro_node(self, state: InterviewState) -> InterviewState:
         logger.info("[INTRO] Asking candidate to introduce themselves")
+            
+        return self._run_step(
+            state,
+            INTRO_PROMPT,
+            "This is the start of intro question - please ask the candidate to introduce themselves.",
+            InterviewProcessNode.INTRO,
+            InterviewProcessStep.INTRO,
+            {
+                "ASK_PROJECT": InterviewProcessStep.ASK_PROJECT,
+                "ASK_EXPERIENCE": InterviewProcessStep.ASK_EXPERIENCE,
+            },
+        )
 
-        try:
-            vector_resume_store = get_vector_store(collection_name=VectorCollections.RESUMES)
-            results = vector_resume_store.query_by_text(text=state.session_id, k=100)
-            resume_text = "\n".join(
-                item.document for item in results.items if item.document
-            )
-            logger.info(f"[INTRO] Resume info preview: {resume_text}")
-        except Exception:
-            logger.exception("[INTRO] Error querying resume from VectorDB")
-            resume_text = ""
-
-        prompt_input = {
-            "input": state.user_input.strip()
-            or "This is the start of the interview - please ask the candidate to introduce themselves.",
-            "resume_info": resume_text if resume_text else "No resume information available",
-        }
-
-        start_date = datetime.now(timezone.utc).isoformat()
-        out = self._invoke_node(INTRO_PROMPT, state.session_id, prompt_input)
-
-        if out.next_step == "ASK_PROJECT":
-            next_step = InterviewProcessStep.ASK_PROJECT
-            go_to_next_step = True
-        elif out.next_step == "ASK_EXPERIENCE":
-            next_step = InterviewProcessStep.ASK_EXPERIENCE
-            go_to_next_step = True
-        else:
-            next_step = InterviewProcessStep.INTRO
-            go_to_next_step = False
-
-        return self._update_state_with_message(state, start_date, out, InterviewProcessNode.INTRO, next_step, go_to_next_step)
 
     def _experience_node(self, state: InterviewState) -> InterviewState:
         logger.info("[EXPERIENCE] Asking candidate to tell you about their work experience")
@@ -205,7 +186,7 @@ class InterviewProcessingGraph:
             out,
             InterviewProcessNode.ERROR_HANDLER,
             InterviewProcessStep.ERROR_HANDLER,
-            False,
+            {},
         )
 
     def _run_step(
@@ -220,13 +201,13 @@ class InterviewProcessingGraph:
     ) -> InterviewState:
         logger.info(f"[RUN STEP] Running step: {current_step}")
         
-        prompt_input = {
+        context_prompt_input = {
             "input": state.user_input.strip() or fallback_input,
-            "resume_info": "No resume information available",
+            "resume_info": state.context_prompt,
         }
         
         start_date = datetime.now(timezone.utc).isoformat()
-        out = self._invoke_node(prompt, state.session_id, prompt_input)
+        out = self._invoke_node(prompt, state.session_id, context_prompt_input)
 
         next_step = step_map.get(out.next_step, current_step)
         go_to_next_step = always_continue or (next_step != current_step)
@@ -256,13 +237,9 @@ class InterviewProcessingGraph:
                 "go_to_next_step": go_to_next_step,
             }
         )
-        
+
     def _invoke_node(self, prompt, session_id, prompt_input):
         logger.info(f"[INVOKE NODE] Invoking node: {prompt}")
-
-        chat_history = getChatHistory(session_id)
-        msgs = getattr(chat_history, "messages", [])
-
         runnable_struct = prompt | self.llm.with_structured_output(ProcessPromptResponse)
 
         def to_both(x):
@@ -331,7 +308,7 @@ class InterviewProcessingGraph:
                 user_input=state.user_input,
                 current_step=InterviewProcessStep.ERROR_HANDLER,
                 message="",
-                prompt="",
+                context_prompt="",
                 current_storing_node=InterviewProcessNode.GREETING,
                 start_at=datetime.now(timezone.utc).isoformat(),
                 end_at=datetime.now(timezone.utc).isoformat(),

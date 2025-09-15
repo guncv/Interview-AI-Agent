@@ -41,8 +41,6 @@ class WebSocketService:
 
         try:
             curr_recognize = await self.stt_client.transcribe(audio_message.audio_data, client.session_id)
-            logger.info(f"[WebSocketService: handle audio chunk] Curr transcript: '{curr_recognize.transcript}'")
-
             self.redis_client.save_segment_stt(client.session_id, audio_message.segment_id, curr_recognize.transcript)
 
             return {
@@ -73,7 +71,7 @@ class WebSocketService:
         except Exception as e:
             logger.error(f"[WebSocketService: handle interviewer audio chunking] Error: {e}")
             raise e
-    
+
     async def send_response_and_audio(self, client: WebSocketClient, message_data):
         await asyncio.gather(
             self.handle_interviewer_audio_chunking(client, message_data.message),
@@ -91,10 +89,11 @@ class WebSocketService:
     async def get_interviewer_response(self, client: WebSocketClient, final_transcript: str):
         message_data = await self.interview_graph.invoke(client.session_id, final_transcript)
         pending_tasks = []
-        
+
         while True:
-            task = asyncio.create_task(self.send_response_and_audio(client, message_data))
-            pending_tasks.append(task)
+            if message_data.message != "":
+                task = asyncio.create_task(self.send_response_and_audio(client, message_data))
+                pending_tasks.append(task)
 
             if not message_data.go_to_next_step:
                 break

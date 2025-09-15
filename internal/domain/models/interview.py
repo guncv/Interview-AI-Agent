@@ -93,7 +93,7 @@ class InterviewState(BaseModel):
     
     session_id: str
     user_input: str
-    prompt: str
+    context_prompt: str
     message: str
     current_storing_node: InterviewProcessNode
     start_at: str

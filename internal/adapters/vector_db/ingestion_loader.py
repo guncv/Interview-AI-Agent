@@ -2,7 +2,6 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from internal.adapters.vector_db.embedder import create_embedder
 from internal.adapters.vector_db.factory import get_vector_store
 from internal.adapters.log.logger import logger
-from typing import Optional
 from langchain_community.document_loaders import PyMuPDFLoader
 import tempfile
 
