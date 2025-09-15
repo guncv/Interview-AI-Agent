@@ -1,8 +1,8 @@
 from langchain_core.runnables import RunnableLambda
 from langgraph.graph import StateGraph, END
-from internal.domain.models.interview import InterviewProcessStep, InterviewProcessNode, InterviewProcessState, ProcessPromptResponse
+from internal.domain.models.interview import InterviewProcessStep, InterviewProcessNode, ProcessPromptResponse, InterviewState
 from internal.adapters.log.logger import logger
-from internal.adapters.llm.state_store import acquire_lock, load_state, save_state, release_lock, clear_state, clearMemory
+from internal.adapters.llm.state_store import save_state, clearMemory
 from langgraph.checkpoint.memory import MemorySaver
 from internal.service.prompts.interview_prompt import INTRO_PROMPT, ASK_EXPERIENCE_PROMPT, ASK_PROJECT_PROMPT, GREETING_PROMPT, ASK_TECHNICAL_PROMPT, ASK_BEHAVIORAL_PROMPT, WRAP_UP_PROMPT
 from internal.adapters.llm.loader import getChatHistory, loadLLM
@@ -21,7 +21,7 @@ class InterviewProcessingGraph:
         self.websocket_service = WebSocketService()
         
     def _build_graph(self):
-        wf = StateGraph(InterviewProcessState)
+        wf = StateGraph(InterviewState)
 
         wf.add_node(InterviewProcessNode.ROUTER.value, self._router_node)
         wf.add_node(InterviewProcessNode.GREETING.value, self._greeting_node)
@@ -72,13 +72,13 @@ class InterviewProcessingGraph:
         
         return wf.compile()
 
-    def _router_node(self, state: InterviewProcessState) -> InterviewProcessState:
+    def _router_node(self, state: InterviewState) -> InterviewState:
         return state
 
-    def _route_from_state(self, state: InterviewProcessState) -> InterviewProcessStep:
+    def _route_from_state(self, state: InterviewState) -> InterviewProcessStep:
         return state.current_step
 
-    def _after_node_continue_or_pause(self, state: InterviewProcessState) -> str:
+    def _after_node_continue_or_pause(self, state: InterviewState) -> str:
         if state.go_to_next_step:
             try:
                 clearMemory(state.session_id)
@@ -87,7 +87,7 @@ class InterviewProcessingGraph:
                 logger.exception(f"[MEMORY] Failed to clear memory for session {state.session_id}")
         return "pause"
 
-    def _greeting_node(self, state: InterviewProcessState) -> InterviewProcessState:
+    def _greeting_node(self, state: InterviewState) -> InterviewState:
         logger.info("[GREETING] Greeting the candidate")
         
         return self._run_step(
@@ -99,7 +99,7 @@ class InterviewProcessingGraph:
             {"INTRO": InterviewProcessStep.INTRO},
         )
 
-    def _intro_node(self, state: InterviewProcessState) -> InterviewProcessState:
+    def _intro_node(self, state: InterviewState) -> InterviewState:
         logger.info("[INTRO] Asking candidate to introduce themselves")
 
         try:
@@ -134,7 +134,7 @@ class InterviewProcessingGraph:
 
         return self._update_state_with_message(state, start_date, out, InterviewProcessNode.INTRO, next_step, go_to_next_step)
 
-    def _experience_node(self, state: InterviewProcessState) -> InterviewProcessState:
+    def _experience_node(self, state: InterviewState) -> InterviewState:
         logger.info("[EXPERIENCE] Asking candidate to tell you about their work experience")
 
         return self._run_step(
@@ -146,7 +146,7 @@ class InterviewProcessingGraph:
             {"ASK_PROJECT": InterviewProcessStep.ASK_PROJECT},
         )
 
-    def _projects_node(self, state: InterviewProcessState) -> InterviewProcessState:
+    def _projects_node(self, state: InterviewState) -> InterviewState:
         logger.info("[PROJECTS] Asking candidate to tell you about their projects")
 
         return self._run_step(
@@ -158,7 +158,7 @@ class InterviewProcessingGraph:
             {"TECHNICAL_QUESTION": InterviewProcessStep.TECHNICAL_QUESTION},
         )
 
-    def _technical_node(self, state: InterviewProcessState) -> InterviewProcessState:
+    def _technical_node(self, state: InterviewState) -> InterviewState:
         logger.info("[TECHNICAL] Asking candidate to tell you about their technical skills")
 
         return self._run_step(
@@ -170,7 +170,7 @@ class InterviewProcessingGraph:
             {"BEHAVIORAL_QUESTION": InterviewProcessStep.BEHAVIORAL_QUESTION},
         )
 
-    def _behavior_node(self, state: InterviewProcessState) -> InterviewProcessState:
+    def _behavior_node(self, state: InterviewState) -> InterviewState:
         logger.info("[BEHAVIOR] Asking candidate to tell you about a time they had to deal with a difficult situation")
 
         return self._run_step(
@@ -182,7 +182,7 @@ class InterviewProcessingGraph:
             {"WRAP_UP": InterviewProcessStep.WRAP_UP},
         )
 
-    def _wrap_up_node(self, state: InterviewProcessState) -> InterviewProcessState:
+    def _wrap_up_node(self, state: InterviewState) -> InterviewState:
         logger.info("[WRAP_UP] Asking candidate to tell you about a time they had to deal with a difficult situation")
 
         return self._run_step(
@@ -195,7 +195,7 @@ class InterviewProcessingGraph:
             always_continue=True,
         )
 
-    def _error_handler_node(self, state: InterviewProcessState) -> InterviewProcessState:
+    def _error_handler_node(self, state: InterviewState) -> InterviewState:
         logger.error(f"[ERROR HANDLER] Processing error: {state.error_message}")
         start_date = datetime.now(timezone.utc).isoformat()
         out = ProcessPromptResponse(message=state.error_message, next_step="ERROR_HANDLER", go_to_next_step=False)
@@ -210,14 +210,14 @@ class InterviewProcessingGraph:
 
     def _run_step(
         self,
-        state: InterviewProcessState,
+        state: InterviewState,
         prompt: ChatPromptTemplate,
         fallback_input: str,
         current_state: InterviewProcessNode,
         current_step: InterviewProcessStep,
         step_map: dict[str, InterviewProcessStep],
         always_continue: bool = False,
-    ) -> InterviewProcessState:
+    ) -> InterviewState:
         logger.info(f"[RUN STEP] Running step: {current_step}")
         
         prompt_input = {
@@ -235,20 +235,20 @@ class InterviewProcessingGraph:
 
     def _update_state_with_message(
         self,
-        state: InterviewProcessState,
+        state: InterviewState,
         start_date: str,
         out: ProcessPromptResponse,
         current_state: InterviewProcessNode,
         next_step: InterviewProcessStep,
         go_to_next_step: bool,
-    ) -> InterviewProcessState:
+    ) -> InterviewState:
         logger.info(f"[UPDATE STATE WITH MESSAGE] Updating state with message: {out.message}")
         
         now = datetime.now(timezone.utc).isoformat()
     
         return state.model_copy(
             update={
-                "interview_process_messages": out.message or "",
+                "message": out.message or "",
                 "current_storing_node": current_state,
                 "start_at": start_date,
                 "end_at": now,
@@ -315,57 +315,28 @@ class InterviewProcessingGraph:
 
         return ProcessPromptResponse(**data["raw"])
 
-    async def invoke(self, session_id: str, user_input: str) -> InterviewProcessState:
+    async def invoke(self, state: InterviewState) -> InterviewState:
         logger.info(f"[InterviewProcessingGraph.invoke] Called:")
         
-        locked = acquire_lock(session_id)
         try:
-            prev_state = load_state(session_id)
-
-            if prev_state:
-                initial_state = prev_state.model_copy(
-                    update={
-                        "user_input": user_input,
-                        "interview_process_messages": "",
-                    }
-                )
-            else:
-                initial_state = InterviewProcessState(
-                    session_id=session_id,
-                    user_input=user_input,
-                    current_step=InterviewProcessStep.GREETING,
-                    interview_process_messages="",
-                    current_storing_node=InterviewProcessNode.GREETING,
-                    start_at=datetime.now(timezone.utc).isoformat(),
-                    end_at=datetime.now(timezone.utc).isoformat(),
-                    go_to_next_step=False,
-                    error_message=None,
-                )
-
-            result = await self.graph.ainvoke(initial_state)
-            normalized = InterviewProcessState(**result) if isinstance(result, dict) else result
+            result = await self.graph.ainvoke(state)
+            normalized = InterviewState(**result) if isinstance(result, dict) else result
             
-            if normalized.current_step == InterviewProcessStep.ERROR_HANDLER:
-                clear_state(session_id)
-            else:
-                save_state(session_id, normalized)
             return normalized
 
         except Exception as e:
             logger.exception("[InterviewProcessingGraph.invoke] exception")
-            err = InterviewProcessState(
-                session_id=session_id,
-                user_input=user_input,
+            err = InterviewState(
+                session_id=state.session_id,
+                user_input=state.user_input,
                 current_step=InterviewProcessStep.ERROR_HANDLER,
-                interview_process_messages="",
+                message="",
+                prompt="",
                 current_storing_node=InterviewProcessNode.GREETING,
                 start_at=datetime.now(timezone.utc).isoformat(),
                 end_at=datetime.now(timezone.utc).isoformat(),
                 go_to_next_step=False,
                 error_message=str(e),
             )
-            save_state(session_id, err)
+            save_state(state.session_id, err)
             return err
-        finally:
-            if locked:
-                release_lock(session_id)

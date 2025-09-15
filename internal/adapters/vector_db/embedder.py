@@ -20,9 +20,15 @@ class OpenAIEmbedder:
     
     def __call__(self, texts: Sequence[str]) -> Sequence[Sequence[float]]:
         try:
+            filtered_texts = [text.strip() for text in texts if text and text.strip()]
+            
+            if not filtered_texts:
+                logger.warning("All input texts are empty, returning empty embeddings")
+                return []
+            
             response = self.client.embeddings.create(
                 model=self.model,
-                input=list(texts)
+                input=filtered_texts
             )
             return [embedding.embedding for embedding in response.data]
         except Exception as e:

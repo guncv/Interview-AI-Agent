@@ -99,19 +99,6 @@ class InterviewState(BaseModel):
     go_to_next_step: bool = False
     error_message: Optional[str] = None
     current_step: InterviewProcessStep
-
-class InterviewProcessState(BaseModel):
-    model_config = {"arbitrary_types_allowed": True}
-    
-    session_id: str
-    user_input: str
-    current_step: InterviewProcessStep
-    interview_process_messages: str
-    current_storing_node: InterviewProcessNode
-    start_at: str
-    end_at: str
-    error_message: Optional[str] = None
-    go_to_next_step: bool = False
     
 class ProcessPromptResponse(BaseModel):
     message: str
