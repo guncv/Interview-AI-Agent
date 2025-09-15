@@ -1,8 +1,10 @@
 from internal.adapters.log.logger import logger
 from internal.domain.models.websocket import AudioChunkMessage, WebSocketClient, SegmentStartMessage, SegmentEndMessage, StartSessionConversationMessage, TTSAudioChunking
 from internal.service.websocket import WebSocketService
+from internal.domain.enum import WebSocketMessageType
 import json
 import base64
+import struct
 
 class WebSocketServerCallback:
     def __init__(self):
@@ -17,7 +19,7 @@ class WebSocketServerCallback:
             
             for message in resp.content:
                 await client.websocket.send_text(json.dumps({
-                    "type": "interviewer_response",
+                    "type": WebSocketMessageType.INTERVIEWER_RESPONSE,
                     "author": "interviewer",
                     "session_id": client.session_id,
                     "message": message.message,
@@ -70,7 +72,7 @@ class WebSocketServerCallback:
             client.current_segment_id = None
             
             await client.websocket.send_text(json.dumps({
-                "type": "user_full_transcript",
+                "type": WebSocketMessageType.USER_FULL_TRANSCRIPT,
                 "author": "user",
                 "session_id": client.session_id,
                 "segment_id": request.segment_id,
@@ -81,7 +83,7 @@ class WebSocketServerCallback:
             
             for message in resp.content:
                 await client.websocket.send_text(json.dumps({
-                    "type": "interviewer_response",
+                    "type": WebSocketMessageType.INTERVIEWER_RESPONSE,
                     "author": "interviewer",
                     "session_id": client.session_id,
                     "message": message.message,
@@ -93,23 +95,23 @@ class WebSocketServerCallback:
         except Exception as e:
             logger.error(f"[WebsocketServerCallback: handle segment end]: {e}")
             raise e
-
-    async def handle_tts(self, client: WebSocketClient, request: TTSAudioChunking):
-        logger.info(f"[WebsocketServerCallback: handle tts] Called:")
+    
+    async def handle_interviewer_audio_chunking(self, client: WebSocketClient, request: TTSAudioChunking):
+        logger.info(f"[WebsocketServerCallback: handle interviewer audio chunking] Called:")
         try:
             if request.session_id != client.session_id:
                 raise ValueError(f"Session ID mismatch: {request.session_id} != {client.session_id}")
 
-            logger.info(f"[WebSocketServerCallback: handle tts] Request: {request}")
-            # Encode bytes to base64 for JSON serialization
-            audio_b64 = base64.b64encode(request.audio).decode('utf-8')
-            await client.websocket.send_text(json.dumps({
-                "type": "interviewer_audio_chunking",
+            header = {
+                "type": WebSocketMessageType.INTERVIEWER_AUDIO_CHUNKING,
                 "session_id": client.session_id,
-                "audio": audio_b64
-            }))
+            }
+            header_bytes = json.dumps(header).encode("utf-8")
+            frame = struct.pack(">I", len(header_bytes)) + header_bytes + request.audio
+            await client.websocket.send_bytes(frame)
+
         except Exception as e:
-            logger.error(f"[WebsocketServerCallback: handle tts] Error: {e}")
+            logger.error(f"[WebsocketServerCallback: handle interviewer audio chunking] Error: {e}")
             raise e
 
     async def initialize_tts_session(self, client: WebSocketClient):

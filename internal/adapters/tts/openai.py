@@ -62,7 +62,7 @@ class OpenAITTSSession(TTSPort):
             logger.debug(f"[OpenAI TTS] Sent text for synthesis | Session {self.session_id}")
 
             async for msg in self.ws:
-                logger.info(f"[OpenAI TTS Session] Synthesizing stream Received message: {msg}")
+                logger.info(f"[OpenAI TTS Session] Synthesizing stream Received message:")
                 data = json.loads(msg)
 
                 if data["type"] == "response.audio.delta":

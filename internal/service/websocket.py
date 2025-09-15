@@ -3,6 +3,7 @@ from internal.domain.models.websocket import WebSocketClient, AudioChunkMessage,
 from internal.adapters.db.redis import redis_client
 from internal.adapters.stt.whisper_stt import WhisperSpeechToText
 from internal.domain.models.interview import InterviewServiceResponse
+from internal.domain.enum import WebSocketMessageType
 from internal.adapters.tts.openai import OpenAITTS
 
 class WebSocketService:
@@ -44,7 +45,7 @@ class WebSocketService:
             self.redis_client.save_segment_stt(client.session_id, audio_message.segment_id, curr_recognize.transcript)
 
             return {
-                "type": "user_partial_transcript",
+                "type": WebSocketMessageType.USER_PARTIAL_TRANSCRIPT,
                 "author": "user",
                 "session_id": client.session_id,
                 "segment_id": audio_message.segment_id,
@@ -55,21 +56,21 @@ class WebSocketService:
             logger.error(f"[WebSocketService: handle audio chunk] Error: {e}")
             raise e
         
-    async def handle_tts(self, client: WebSocketClient, message: str):
+    async def handle_interviewer_audio_chunking(self, client: WebSocketClient, message: str):
         logger.info(f"[WebSocketService: handle tts] Called:")
 
         try:
             async for chunk in self.tts_client.synthesize_stream(message, client.session_id):
-                logger.info(f"[WebSocketService: handle tts] Sending chunk to server callback")
+                logger.info(f"[WebSocketService: handle interviewer audio chunking] Sending chunk to server callback")
 
                 tts_chunk = TTSAudioChunking(
-                    type="tts_audio_chunking",
+                    type=WebSocketMessageType.INTERVIEWER_AUDIO_CHUNKING,
                     session_id=client.session_id,
                     audio=chunk
                 )
-                await self.websocket_server_callback.handle_tts(client, tts_chunk)
+                await self.websocket_server_callback.handle_interviewer_audio_chunking(client, tts_chunk)
         except Exception as e:
-            logger.error(f"[WebSocketService: handle tts] Error: {e}")
+            logger.error(f"[WebSocketService: handle interviewer audio chunking] Error: {e}")
             raise e
 
     async def get_interviewer_response(self, client: WebSocketClient, final_transcript: str) -> InterviewServiceResponse:

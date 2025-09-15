@@ -204,11 +204,13 @@ class InterviewProcessingGraph:
 
     def _error_handler_node(self, state: InterviewProcessState) -> InterviewProcessState:
         logger.error(f"[ERROR HANDLER] Processing error: {state.error_message}")
+        start_date = datetime.now(timezone.utc).isoformat()
+        out = ProcessPromptResponse(message=state.error_message, next_step="ERROR_HANDLER", go_to_next_step=False)
         return self._update_state_with_message(
             state,
-            ProcessPromptResponse(message=state.error_message, next_step="ERROR_HANDLER", go_to_next_step=False),
+            start_date,
+            out,
             InterviewProcessNode.ERROR_HANDLER,
-            InterviewProcessStep.ERROR_HANDLER,
             InterviewProcessStep.ERROR_HANDLER,
             False,
         )
@@ -357,9 +359,8 @@ class InterviewProcessingGraph:
 
             logger.info(f"[InterviewProcessingGraph.invoke]: step={normalized.current_step}, interview_process_messages={normalized.interview_process_messages!r}")
             
-            # Handle TTS for any messages generated during graph execution
             if len(normalized.interview_process_messages) > 0:
-                await self.websocket_service.handle_tts(
+                await self.websocket_service.handle_interviewer_audio_chunking(
                     normalized.client,
                     normalized.interview_process_messages[-1].message,
                 )
