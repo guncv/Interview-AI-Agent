@@ -2,9 +2,10 @@ from internal.adapters.log.logger import logger
 from internal.domain.models.websocket import WebSocketClient, AudioChunkMessage, SegmentStartMessage, TTSAudioChunking
 from internal.adapters.db.redis import redis_client
 from internal.adapters.stt.whisper_stt import WhisperSpeechToText
-from internal.domain.models.interview import InterviewServiceResponse
 from internal.domain.enum import WebSocketMessageType
 from internal.adapters.tts.openai import OpenAITTS
+import json
+import asyncio
 
 class WebSocketService:
     def __init__(self):
@@ -72,19 +73,35 @@ class WebSocketService:
         except Exception as e:
             logger.error(f"[WebSocketService: handle interviewer audio chunking] Error: {e}")
             raise e
+    
+    async def send_response_and_audio(self, client: WebSocketClient, message_data):
+        await asyncio.gather(
+            self.handle_interviewer_audio_chunking(client, message_data.message),
+            client.websocket.send_text(json.dumps({
+                "type": WebSocketMessageType.INTERVIEWER_RESPONSE,
+                "author": "interviewer",
+                "session_id": client.session_id,
+                "message": message_data.message,
+                "started_at": message_data.start_at,
+                "ended_at": message_data.end_at,
+                "current_state": message_data.current_storing_node.value
+            }))
+        )
 
-    async def get_interviewer_response(self, client: WebSocketClient, final_transcript: str) -> InterviewServiceResponse:
-        logger.info(f"[WebSocketService: get interviewer response] Called:")
+    async def get_interviewer_response(self, client: WebSocketClient, final_transcript: str):
+        message_data = await self.interview_graph.invoke(client.session_id, final_transcript)
+        pending_tasks = []
+        
+        while True:
+            task = asyncio.create_task(self.send_response_and_audio(client, message_data))
+            pending_tasks.append(task)
 
-        try:
-            message_data = await self.interview_graph.invoke(client.session_id, final_transcript, client)
-            logger.info(f"[WebSocketService: get interviewer response] Message data: {message_data}")
-            resp = InterviewServiceResponse(content=message_data.message)
-            return resp
+            if not message_data.go_to_next_step:
+                break
 
-        except Exception as e:
-            logger.error(f"[WebSocketService: get interviewer response]: {e}")
-            raise e
+            message_data = await self.interview_graph.invoke(client.session_id, message_data.message)
+
+        await asyncio.gather(*pending_tasks)
         
     async def initialize_tts_session(self, session_id: str):
         logger.info(f"[WebSocketService: initialize tts session] Called for session: {session_id}")

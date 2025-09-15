@@ -6,6 +6,8 @@ from internal.adapters.vector_db.factory import get_vector_store
 from internal.shared.exception import InterviewSimulationException, InterviewSimulationErrorCodes
 from internal.service.process_graph import InterviewProcessingGraph
 from internal.domain.models.websocket import WebSocketClient
+from datetime import datetime, timezone
+from internal.domain.models.interview import InterviewProcessNode
 
 class InterviewGraph:
     def __init__(self):
@@ -80,12 +82,15 @@ class InterviewGraph:
         answer = await self.process_graph.invoke(
             state.session_id,
             state.user_input,
-            state.client
             )
         try:
             return state.model_copy(update={
-                "message": answer.interview_process_messages or [],
+                "message": answer.interview_process_messages or "",
+                "current_storing_node": answer.current_storing_node,
+                "start_at": answer.start_at,
+                "end_at": answer.end_at,
                 "current_step": answer.current_step,
+                "go_to_next_step": answer.go_to_next_step,
             })
         except Exception as e:
             logger.exception("[PROCESS ANSWER] error")
@@ -104,17 +109,20 @@ class InterviewGraph:
                 "error_message": str(e),
             })
 
-    async def invoke(self, session_id: str, user_input: str, client: WebSocketClient) -> InterviewState:
+    async def invoke(self, session_id: str, user_input: str) -> InterviewState:
         logger.info(f"[InterviewGraph.invoke]: session_id={session_id}, user_input={user_input}")
         try:
             initial_state = InterviewState(
                 session_id=session_id,
                 user_input=user_input,
                 prompt="",
-                message=[],
+                message="",
+                current_storing_node=InterviewProcessNode.GREETING,
+                start_at=datetime.now(timezone.utc).isoformat(),
+                end_at=datetime.now(timezone.utc).isoformat(),
+                go_to_next_step=False,
                 error_message=None,
                 current_step=InterviewProcessStep.GREETING,
-                client=client
             )
 
             result = await self.graph.ainvoke(

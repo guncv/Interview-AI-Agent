@@ -15,18 +15,7 @@ class WebSocketServerCallback:
             if request.session_id != client.session_id:
                 raise ValueError(f"Session ID mismatch: {request.session_id} != {client.session_id}")
 
-            resp = await self.websocket_service.get_interviewer_response(client, "Let's Start the conversation")
-            
-            for message in resp.content:
-                await client.websocket.send_text(json.dumps({
-                    "type": WebSocketMessageType.INTERVIEWER_RESPONSE,
-                    "author": "interviewer",
-                    "session_id": client.session_id,
-                    "message": message.message,
-                    "started_at": message.started_at,
-                    "ended_at": message.ended_at,
-                    "current_state": message.current_state.value
-                }))
+            await self.websocket_service.get_interviewer_response(client, "Let's Start the conversation")
             
         except Exception as e:
             logger.error(f"[WebsocketServerCallback: handle start session conversation] Error: {e}")
@@ -79,18 +68,7 @@ class WebSocketServerCallback:
                 "transcript": final_transcript
             }))
             
-            resp = await self.websocket_service.get_interviewer_response(client, final_transcript)
-            
-            for message in resp.content:
-                await client.websocket.send_text(json.dumps({
-                    "type": WebSocketMessageType.INTERVIEWER_RESPONSE,
-                    "author": "interviewer",
-                    "session_id": client.session_id,
-                    "message": message.message,
-                    "started_at": message.started_at,
-                    "ended_at": message.ended_at,
-                    "current_state": message.current_state.value
-                }))
+            await self.websocket_service.get_interviewer_response(client, final_transcript)
 
         except Exception as e:
             logger.error(f"[WebsocketServerCallback: handle segment end]: {e}")

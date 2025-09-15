@@ -1,6 +1,6 @@
 from langchain_core.runnables import RunnableLambda
 from langgraph.graph import StateGraph, END
-from internal.domain.models.interview import InterviewProcessMessage, InterviewProcessStep, InterviewProcessNode, InterviewProcessState, ProcessPromptResponse
+from internal.domain.models.interview import InterviewProcessStep, InterviewProcessNode, InterviewProcessState, ProcessPromptResponse
 from internal.adapters.log.logger import logger
 from internal.adapters.llm.state_store import acquire_lock, load_state, save_state, release_lock, clear_state, clearMemory
 from langgraph.checkpoint.memory import MemorySaver
@@ -11,9 +11,7 @@ from internal.adapters.vector_db.factory import get_vector_store
 from langchain_core.runnables import RunnableWithMessageHistory
 from datetime import datetime, timezone
 from langchain_core.prompts import ChatPromptTemplate
-from internal.domain.models.websocket import WebSocketClient
 from internal.service.websocket import WebSocketService
-import asyncio
 
 class InterviewProcessingGraph:
     def __init__(self):
@@ -81,18 +79,13 @@ class InterviewProcessingGraph:
         return state.current_step
 
     def _after_node_continue_or_pause(self, state: InterviewProcessState) -> str:
-        # Note: TTS handling is now managed in the main async flow, not here
-        # This method should only handle routing logic since it runs in sync context
-                
         if state.go_to_next_step:
             try:
                 clearMemory(state.session_id)
                 logger.info(f"[MEMORY] Cleared memory for session {state.session_id}")
             except Exception:
                 logger.exception(f"[MEMORY] Failed to clear memory for session {state.session_id}")
-            return "continue"
-        else:
-            return "pause"
+        return "pause"
 
     def _greeting_node(self, state: InterviewProcessState) -> InterviewProcessState:
         logger.info("[GREETING] Greeting the candidate")
@@ -251,21 +244,14 @@ class InterviewProcessingGraph:
     ) -> InterviewProcessState:
         logger.info(f"[UPDATE STATE WITH MESSAGE] Updating state with message: {out.message}")
         
-        message = None
-        if out.message:
-            now = datetime.now(timezone.utc).isoformat()
-            
-            message = InterviewProcessMessage(
-                message=out.message,
-                started_at=start_date,
-                ended_at=now,
-                current_state=current_state,
-            )
+        now = datetime.now(timezone.utc).isoformat()
     
         return state.model_copy(
             update={
-                "interview_process_messages": state.interview_process_messages
-                + ([message] if message else []),
+                "interview_process_messages": out.message or "",
+                "current_storing_node": current_state,
+                "start_at": start_date,
+                "end_at": now,
                 "current_step": next_step,
                 "go_to_next_step": go_to_next_step,
             }
@@ -329,7 +315,7 @@ class InterviewProcessingGraph:
 
         return ProcessPromptResponse(**data["raw"])
 
-    async def invoke(self, session_id: str, user_input: str, client: WebSocketClient) -> InterviewProcessState:
+    async def invoke(self, session_id: str, user_input: str) -> InterviewProcessState:
         logger.info(f"[InterviewProcessingGraph.invoke] Called:")
         
         locked = acquire_lock(session_id)
@@ -340,8 +326,7 @@ class InterviewProcessingGraph:
                 initial_state = prev_state.model_copy(
                     update={
                         "user_input": user_input,
-                        "interview_process_messages": [],
-                        "client": client
+                        "interview_process_messages": "",
                     }
                 )
             else:
@@ -349,21 +334,16 @@ class InterviewProcessingGraph:
                     session_id=session_id,
                     user_input=user_input,
                     current_step=InterviewProcessStep.GREETING,
-                    interview_process_messages=[],
+                    interview_process_messages="",
+                    current_storing_node=InterviewProcessNode.GREETING,
+                    start_at=datetime.now(timezone.utc).isoformat(),
+                    end_at=datetime.now(timezone.utc).isoformat(),
+                    go_to_next_step=False,
                     error_message=None,
-                    client=client
                 )
 
             result = await self.graph.ainvoke(initial_state)
             normalized = InterviewProcessState(**result) if isinstance(result, dict) else result
-
-            logger.info(f"[InterviewProcessingGraph.invoke]: step={normalized.current_step}, interview_process_messages={normalized.interview_process_messages!r}")
-            
-            if len(normalized.interview_process_messages) > 0:
-                await self.websocket_service.handle_interviewer_audio_chunking(
-                    normalized.client,
-                    normalized.interview_process_messages[-1].message,
-                )
             
             if normalized.current_step == InterviewProcessStep.ERROR_HANDLER:
                 clear_state(session_id)
@@ -377,9 +357,12 @@ class InterviewProcessingGraph:
                 session_id=session_id,
                 user_input=user_input,
                 current_step=InterviewProcessStep.ERROR_HANDLER,
-                interview_process_messages=[],
+                interview_process_messages="",
+                current_storing_node=InterviewProcessNode.GREETING,
+                start_at=datetime.now(timezone.utc).isoformat(),
+                end_at=datetime.now(timezone.utc).isoformat(),
+                go_to_next_step=False,
                 error_message=str(e),
-                client=client
             )
             save_state(session_id, err)
             return err
