@@ -60,7 +60,14 @@ class WebSocketService:
 
         try:
             async for chunk in self.tts_client.synthesize_stream(message, client.session_id):
-                await self.websocket_server_callback.handle_tts(client, chunk)
+                logger.info(f"[WebSocketService: handle tts] Sending chunk to server callback")
+
+                tts_chunk = TTSAudioChunking(
+                    type="tts_audio_chunking",
+                    session_id=client.session_id,
+                    audio=chunk
+                )
+                await self.websocket_server_callback.handle_tts(client, tts_chunk)
         except Exception as e:
             logger.error(f"[WebSocketService: handle tts] Error: {e}")
             raise e
@@ -76,4 +83,24 @@ class WebSocketService:
 
         except Exception as e:
             logger.error(f"[WebSocketService: get interviewer response]: {e}")
+            raise e
+        
+    async def initialize_tts_session(self, session_id: str):
+        logger.info(f"[WebSocketService: initialize tts session] Called for session: {session_id}")
+        
+        try:
+            await self.tts_client.get_session(session_id)
+            logger.info(f"[WebSocketService: initialize tts session] TTS session initialized for {session_id}")
+        except Exception as e:
+            logger.error(f"[WebSocketService: initialize tts session] Error: {e}")
+            raise e
+
+    async def cleanup_tts_session(self, session_id: str):
+        logger.info(f"[WebSocketService: cleanup tts session] Called for session: {session_id}")
+        
+        try:
+            await self.tts_client.close_session(session_id)
+            logger.info(f"[WebSocketService: cleanup tts session] TTS session closed for {session_id}")
+        except Exception as e:
+            logger.error(f"[WebSocketService: cleanup tts session] Error: {e}")
             raise e

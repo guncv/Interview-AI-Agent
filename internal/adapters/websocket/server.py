@@ -28,6 +28,12 @@ class WebSocketServer:
         self.active_connections[session_id] = client
         self.user_sessions.setdefault(user_id, set()).add(session_id)
         
+        try:
+            await self.callbacks.initialize_tts_session(client)
+            logger.info(f"[Websocket: connect] TTS session initialized for {session_id}")
+        except Exception as e:
+            logger.error(f"[Websocket: connect] Failed to initialize TTS session for {session_id}: {e}")
+        
         logger.info(f"[Websocket: connect successful] {user_id} {session_id}")
         await self._send_json(client, {"type": WebSocketMessageType.CONNECTION_ESTABLISHED, "session_id": session_id})
         return client
@@ -84,6 +90,12 @@ class WebSocketServer:
             user_sessions.discard(client.session_id)
             if not user_sessions:
                 self.user_sessions.pop(client.user_id, None)
+
+        try:
+            await self.callbacks.cleanup_tts_session(client)
+            logger.info(f"[Websocket: disconnect] TTS session cleaned up for {client.session_id}")
+        except Exception as e:
+            logger.error(f"[Websocket: disconnect] Failed to cleanup TTS session for {client.session_id}: {e}")
 
         try:
             await client.websocket.close()
@@ -187,11 +199,10 @@ class WebSocketServer:
             
             header_length = struct.unpack('>I', content[:4])[0]
 
-            # Validate header length to prevent reading corrupted data
             if header_length <= 0:
                 await self._send_error(client, WebSocketErrorCode.INVALID_MESSAGE, "Invalid header length: must be positive")
                 return
-            if header_length > 10000:  # Reasonable upper bound for JSON header
+            if header_length > 10000:
                 await self._send_error(client, WebSocketErrorCode.INVALID_MESSAGE, f"Header length too large: {header_length} bytes")
                 return
 

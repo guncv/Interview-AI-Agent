@@ -81,18 +81,8 @@ class InterviewProcessingGraph:
         return state.current_step
 
     def _after_node_continue_or_pause(self, state: InterviewProcessState) -> str:
-        if len(state.interview_process_messages) > 0:
-            try:
-                loop = asyncio.get_running_loop()
-            except RuntimeError:
-                loop = asyncio.get_event_loop()
-
-            loop.create_task(
-                self.websocket_service.handle_tts(
-                    state.client,
-                    state.interview_process_messages[-1].message,
-                )
-            )
+        # Note: TTS handling is now managed in the main async flow, not here
+        # This method should only handle routing logic since it runs in sync context
                 
         if state.go_to_next_step:
             try:
@@ -366,6 +356,14 @@ class InterviewProcessingGraph:
             normalized = InterviewProcessState(**result) if isinstance(result, dict) else result
 
             logger.info(f"[InterviewProcessingGraph.invoke]: step={normalized.current_step}, interview_process_messages={normalized.interview_process_messages!r}")
+            
+            # Handle TTS for any messages generated during graph execution
+            if len(normalized.interview_process_messages) > 0:
+                await self.websocket_service.handle_tts(
+                    normalized.client,
+                    normalized.interview_process_messages[-1].message,
+                )
+            
             if normalized.current_step == InterviewProcessStep.ERROR_HANDLER:
                 clear_state(session_id)
             else:
