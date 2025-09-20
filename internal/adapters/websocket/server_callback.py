@@ -36,9 +36,7 @@ class WebSocketServerCallback:
             if audio_message.segment_id != client.current_segment_id:
                 raise ValueError(f"Segment ID mismatch: {audio_message.segment_id} != {client.current_segment_id}")
 
-            message_data = await self.websocket_service.handle_audio_chunk(client, audio_message)
-
-            await client.websocket.send_text(json.dumps(message_data))
+            await self.websocket_service.handle_audio_chunk(client, audio_message)
         except Exception as e:
             logger.error(f"[WebsocketServerCallback: handle audio chunk] Error: {e}")
             raise e
@@ -90,21 +88,4 @@ class WebSocketServerCallback:
 
         except Exception as e:
             logger.error(f"[WebsocketServerCallback: handle interviewer audio chunking] Error: {e}")
-            raise e
-
-    async def initialize_tts_session(self, client: WebSocketClient):
-        try:
-            logger.info(f"[WebsocketServerCallback: initialize tts session] TTS session initialized for {client.session_id}")
-            await self.websocket_service.initialize_tts_session(client.session_id)
-            
-        except Exception as e:
-            logger.error(f"[WebsocketServerCallback: initialize tts session] Error: {e}")
-            raise e
-
-    async def cleanup_tts_session(self, client: WebSocketClient):
-        try:
-            await self.websocket_service.cleanup_tts_session(client.session_id)
-            logger.info(f"[WebsocketServerCallback: cleanup tts session] TTS session cleaned up for {client.session_id}")
-        except Exception as e:
-            logger.error(f"[WebsocketServerCallback: cleanup tts session] Error: {e}")
             raise e

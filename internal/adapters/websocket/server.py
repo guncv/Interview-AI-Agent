@@ -19,7 +19,7 @@ class WebSocketServer:
         session_id = params["session_id"]
         resume_id = params["resume_id"]
         
-        logger.info(f"[Websocket: connect] {user_id} {session_id} {resume_id}")
+        logger.info(f"[Websocket: connect] called")
         if session_id in self.active_connections:
             await self.disconnect(self.active_connections[session_id])
         await websocket.accept()
@@ -28,29 +28,23 @@ class WebSocketServer:
         self.active_connections[session_id] = client
         self.user_sessions.setdefault(user_id, set()).add(session_id)
         
-        try:
-            await self.callbacks.initialize_tts_session(client)
-            logger.info(f"[Websocket: connect] TTS session initialized for {session_id}")
-        except Exception as e:
-            logger.error(f"[Websocket: connect] Failed to initialize TTS session for {session_id}: {e}")
-        
-        logger.info(f"[Websocket: connect successful] {user_id} {session_id}")
+        logger.info(f"[Websocket: connect successful] called")
         await self._send_json(client, {"type": WebSocketMessageType.CONNECTION_ESTABLISHED, "session_id": session_id})
         return client
 
     async def serve(self, client: WebSocketClient):
-        logger.info(f"[Websocket: serve] {client.user_id} {client.session_id}")
+        logger.info(f"[Websocket: serve] called")
         read_task = asyncio.create_task(self._read_loop(client))
         
         try:
             await asyncio.wait({read_task}, return_when=asyncio.FIRST_COMPLETED)
             
         except asyncio.CancelledError:
-            logger.info(f"[Websocket: serve] {client.user_id} {client.session_id}: cancelled")
+            logger.info(f"[Websocket: serve] called: cancelled")
             await self.disconnect(client)
             
         except Exception as e:
-            logger.error(f"[Websocket: serve] {client.user_id} {client.session_id}: {e}")
+            logger.error(f"[Websocket: serve] called: {e}")
             await self.disconnect(client)
             
         finally:
@@ -60,7 +54,7 @@ class WebSocketServer:
             await self.disconnect(client)
 
     async def _read_loop(self, client: WebSocketClient):
-        logger.info(f"[Websocket: read_loop] {client.user_id} {client.session_id}")
+        logger.info(f"[Websocket: read_loop] called")
         try:
             while client.is_connected:
                 message = await client.websocket.receive()
@@ -71,10 +65,10 @@ class WebSocketServer:
                 await self._handle_message(client, message)
                     
         except WebSocketDisconnect:
-            logger.info(f"WS disconnect from {client.user_id}")
+            logger.info(f"WS disconnect from called")
             
         except Exception as e:
-            logger.error(f"Read error from {client.user_id}: {e}")
+            logger.error(f"Read error from called: {e}")
             
         finally:
             await self.disconnect(client)
@@ -90,12 +84,6 @@ class WebSocketServer:
             user_sessions.discard(client.session_id)
             if not user_sessions:
                 self.user_sessions.pop(client.user_id, None)
-
-        try:
-            await self.callbacks.cleanup_tts_session(client)
-            logger.info(f"[Websocket: disconnect] TTS session cleaned up for {client.session_id}")
-        except Exception as e:
-            logger.error(f"[Websocket: disconnect] Failed to cleanup TTS session for {client.session_id}: {e}")
 
         try:
             await client.websocket.close()
@@ -155,9 +143,9 @@ class WebSocketServer:
         try:
             logger.info(f"[Websocket: handle text message inside loop]: {content}")
             data = json.loads(content)
-            t = data.get("type")
+            type = data.get("type")
 
-            match t:
+            match type:
                 case WebSocketMessageType.SEGMENT_START:
                     is_valid, error_msg = self._validate_segment_message(data, WebSocketMessageType.SEGMENT_START)
                     if not is_valid:
