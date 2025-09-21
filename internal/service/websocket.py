@@ -2,8 +2,9 @@ from internal.adapters.log.logger import logger
 from internal.domain.models.websocket import WebSocketClient, AudioChunkMessage, SegmentStartMessage, TTSAudioChunking
 from internal.adapters.db.redis import redis_client
 from internal.adapters.stt.whisper_stt import WhisperSpeechToText
-from internal.domain.enum import WebSocketMessageType
+from internal.domain.enum import WebSocketMessageType, WebSocketMessageAuthor
 from internal.adapters.tts.openai import OpenAITTS
+from starlette.websockets import WebSocketDisconnect
 import json
 import asyncio
 
@@ -61,24 +62,43 @@ class WebSocketService:
                 )
                 await self.websocket_server_callback.handle_interviewer_audio_chunking(client, tts_chunk)
 
+        except WebSocketDisconnect:
+            logger.warning(f"[WebSocketService: handle_interviewer_audio_chunking] WebSocket disconnected, stopping audio streaming")
+            client.is_connected = False
+            return
+        
         except Exception as e:
-            logger.error(f"[WebSocketService: handle_interviewer_audio_chunking] Error: {e}")
+            logger.error(f"[WebSocketService: handle_interviewer_audio_chunking] Error: {e}", exc_info=True)
             raise
 
     async def send_response_and_audio(self, client: WebSocketClient, message_data):
         logger.info("[WebSocketService: send_response_and_audio] Called")
 
-        await self.handle_interviewer_audio_chunking(client, message_data.message)
+        try:
+            if not client.is_connected:
+                logger.warning(f"[WebSocketService: send_response_and_audio] WebSocket is not connected, skipping response")
+                return
 
-        await client.websocket.send_text(json.dumps({
-            "type": WebSocketMessageType.INTERVIEWER_RESPONSE,
-            "author": "interviewer",
-            "session_id": client.session_id,
-            "message": message_data.message,
-            "started_at": message_data.start_at,
-            "ended_at": message_data.end_at,
-            "current_state": message_data.current_storing_node.value
-        }))
+            await self.handle_interviewer_audio_chunking(client, message_data.message)
+
+            await client.websocket.send_text(json.dumps({
+                "type": WebSocketMessageType.INTERVIEWER_RESPONSE,
+                "author": WebSocketMessageAuthor.INTERVIEWER,
+                "session_id": client.session_id,
+                "message": message_data.message,
+                "started_at": message_data.start_at,
+                "ended_at": message_data.end_at,
+                "current_state": message_data.current_storing_node.value
+            }))
+            
+        except WebSocketDisconnect:
+            logger.warning(f"[WebSocketService: send_response_and_audio] WebSocket disconnected, skipping response")
+            client.is_connected = False
+            return
+        
+        except Exception as e:
+            logger.error(f"[WebSocketService: send_response_and_audio] Error: {e}", exc_info=True)
+            raise
 
     async def get_interviewer_response(self, client: WebSocketClient, final_transcript: str):
         logger.info("[WebSocketService: get_interviewer_response] Called")
@@ -93,3 +113,10 @@ class WebSocketService:
                 break
 
             message_data = await self.interview_graph.invoke(client.session_id, message_data.message)
+        
+        logger.info(f"[WebSocketService: get_interviewer_response] Sending ending interviewer turn")
+        await asyncio.sleep(1)
+        await client.websocket.send_text(json.dumps({
+            "type": WebSocketMessageType.INTERVIEWR_TURN_END,
+            "session_id": client.session_id
+        }))
