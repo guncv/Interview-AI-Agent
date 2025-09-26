@@ -9,11 +9,16 @@ class WebSocketMessageType(str, Enum):
     USER_FULL_TRANSCRIPT = "user_full_transcript"
     USER_PARTIAL_TRANSCRIPT = "user_partial_transcript"
     INTERVIEWER_RESPONSE = "interviewer_response"
+    INTERVIEWR_TURN_START = "interviewer_turn_start"
+    INTERVIEWR_TURN_END = "interviewer_turn_end"
     ERROR = "error"
     ECHO = "echo"
     PING = "ping"
     PONG = "pong"
 
+class WebSocketMessageAuthor(str, Enum):
+    USER = "user"
+    INTERVIEWER = "interviewer"
 
 class WebSocketErrorCode(str, Enum):
     INVALID_TOKEN = "invalid_token"

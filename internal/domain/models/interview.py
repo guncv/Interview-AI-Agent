@@ -2,6 +2,7 @@ import string
 from pydantic import BaseModel
 from typing import List, Optional
 from enum import Enum
+from typing import List, Optional
 
 class HealthCheckResponse(BaseModel):
     message: str
@@ -19,6 +20,12 @@ class RequirementsRequest(BaseModel):
     resume_file: bytes
     session_id: str
     
+class GetOverallSummaryRequest(BaseModel):
+    summary_md: List[str]
+    
+class GetOverallSummaryResponse(BaseModel):
+    overall_summary_md: str
+
 class Criteria(BaseModel):
 	criterion_id: str
 	criterion_code: str
@@ -33,7 +40,7 @@ class FeedbackAndScoreRequest(BaseModel):
     rubric_name: str
     rubric_description_md: str
     criteria: List[Criteria]
-
+    
 class CriteriaScore(BaseModel):
     criterion_id: str
     criterion_code: str
@@ -93,7 +100,7 @@ class InterviewState(BaseModel):
     
     session_id: str
     user_input: str
-    prompt: str
+    context_prompt: str
     message: str
     current_storing_node: InterviewProcessNode
     start_at: str
@@ -106,3 +113,24 @@ class ProcessPromptResponse(BaseModel):
     message: str
     next_step: str
     go_to_next_step: bool
+    
+class PreProcessedCriteria(BaseModel):
+	criteria_id:       str
+	criteria_name:     str
+	criteria_avg_score: float
+	criteria_comment:  List[str]
+
+class PreProcessedCriteriaResp(BaseModel):
+	criteria: List[PreProcessedCriteria]
+
+class PostProcessedCriteria(BaseModel):
+	criteria_id:       str
+	criteria_name:     str
+	criteria_avg_score: float
+	criteria_comment:  str
+
+class PostProcessedCriteriaResp(BaseModel):
+	criteria: List[PostProcessedCriteria]
+
+
+

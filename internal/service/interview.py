@@ -48,6 +48,7 @@ class InterviewService:
             metadata = {
                 "user_id": request.user_id,
                 "resume_id": request.resume_id,
+                "session_id": request.session_id,
             }
             ingest_document(VectorCollections.RESUMES, request.resume_file, request.session_id, metadata)
             return None

@@ -1,12 +1,13 @@
 from internal.adapters.log.logger import logger
 from internal.domain.models.interview import InterviewNode, InterviewState, InterviewProcessStep
 from langgraph.graph import StateGraph, END
-from internal.domain.models.vector import VectorCollections
-from internal.adapters.vector_db.factory import get_vector_store
 from internal.service.process_graph import InterviewProcessingGraph
 from datetime import datetime, timezone
 from internal.domain.models.interview import InterviewProcessNode
 from internal.adapters.llm.state_store import acquire_lock, load_state, save_state, release_lock, clear_state
+from internal.domain.models.vector import VectorCollections
+from internal.adapters.vector_db.factory import get_vector_store
+
 class InterviewGraph:
     def __init__(self):
         self.graph = self._build_graph()
@@ -47,33 +48,29 @@ class InterviewGraph:
         if not state.user_input or not state.user_input.strip():
             logger.info("[QUERY VECTOR DB]: Skipping vector DB query due to empty user input")
             return state.model_copy(update={
-                "prompt": "No user input provided for vector search"
+                "user_input": "No user input provided for vector search"
             })
         
         try:
             vector_resume_store = get_vector_store(collection_name=VectorCollections.RESUMES)
-            results = vector_resume_store.query_by_text(text=state.user_input.strip())
-            resume_text = "\n".join(
-                item.document for item in results.items[:3] if item.document
-            )
-            
-            vector_chat_history_store = get_vector_store(collection_name=VectorCollections.CHAT_HISTORY)
-            results = vector_chat_history_store.query_by_text(text=state.user_input.strip())
-
-            chat_text = "\n".join(
-                item.document for item in results.items[:3] if item.document
-            )
-
-            context = f"Resume Info:\n{resume_text}\n\nChat History:\n{chat_text}"
-            logger.info(f"[QUERY VECTOR DB] context = {context}")
-            if context:
-                prompt = context
+            if state.current_step == InterviewProcessStep.INTRO:
+                results = vector_resume_store.query_by_text(text=state.user_input.strip(), k=100, session_id=state.session_id)
+                resume_text = "\n".join(
+                    item.document for item in results.items if item.document
+                )
+                
+                return state.model_copy(update={
+                    "context_prompt": resume_text,
+                })
             else:
-                prompt = ""
-            return state.model_copy(update={
-                "prompt": prompt,
-            })
-            
+                resume = vector_resume_store.query_by_text(text=state.user_input.strip(), k=5, session_id=state.session_id)
+                resume_text = "\n".join(
+                    item.document for item in resume.items if item.document
+                )
+                
+                return state.model_copy(update={
+                    "context_prompt": resume_text,
+                })
         except Exception as e:
             logger.exception("[QUERY VECTOR DB] error")
             return state.model_copy(update={
@@ -114,7 +111,7 @@ class InterviewGraph:
                 initial_state = prev_state.model_copy(
                     update={
                         "user_input": user_input,
-                        "prompt": "",
+                        "context_prompt": "",
                         "message": "",
                     }
                 )
@@ -122,7 +119,7 @@ class InterviewGraph:
                 initial_state = InterviewState(
                     session_id=session_id,
                     user_input=user_input,
-                    prompt="",
+                    context_prompt="",
                     message="",
                     current_storing_node=InterviewProcessNode.GREETING,
                     start_at=datetime.now(timezone.utc).isoformat(),
@@ -154,7 +151,7 @@ class InterviewGraph:
             err = InterviewState(
                 session_id=session_id,
                 user_input=user_input,
-                prompt="",
+                context_prompt="",
                 message="",
                 current_storing_node=InterviewProcessNode.GREETING,
                 start_at=datetime.now(timezone.utc).isoformat(),
