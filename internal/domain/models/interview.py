@@ -20,6 +20,12 @@ class RequirementsRequest(BaseModel):
     resume_file: bytes
     session_id: str
     
+class GetOverallSummaryRequest(BaseModel):
+    summary_md: List[str]
+    
+class GetOverallSummaryResponse(BaseModel):
+    overall_summary_md: str
+
 class Criteria(BaseModel):
 	criterion_id: str
 	criterion_code: str
@@ -35,12 +41,6 @@ class FeedbackAndScoreRequest(BaseModel):
     rubric_description_md: str
     criteria: List[Criteria]
     
-class GetOverallSummaryRequest(BaseModel):
-    summary_md: List[str]
-    
-class GetOverallSummaryResponse(BaseModel):
-    overall_summary_md: str
-
 class CriteriaScore(BaseModel):
     criterion_id: str
     criterion_code: str

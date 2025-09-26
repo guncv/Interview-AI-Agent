@@ -10,12 +10,6 @@ from internal.domain.exception import InterviewSimulationErrorCodes
 from internal.adapters.log.logger import logger
 from internal.adapters.llm.loader import loadLLM, getLLMModel
 
-def build_criteria_descriptions(criteria_list):
-    return "\n".join(
-        f"- **{c.criterion_name}** (ID: {c.criterion_id}, Code: {c.criterion_code}): {c.criterion_description_md} (Weight: {c.criterion_weight}, Max Score: {c.criterion_max_score})"
-        for c in criteria_list
-    )
-
 class FeedbackAndScoreService:
     def __init__(self):
         self.llm = loadLLM("interview")
@@ -33,63 +27,56 @@ class FeedbackAndScoreService:
         logger.info(f"[Feedback and Score Service Called:]")
 
         try:
-            criteria_descriptions = build_criteria_descriptions(request.criteria)
-            max_score = max(float(c.criterion_max_score) for c in request.criteria)
+            formatted_criteria = "\n\n".join([
+                f"**Criteria ID:** {c.criterion_id}\n"
+                f"**Criteria Name:** {c.criterion_name}\n"
+                f"**Max Score:** {c.criterion_max_score}\n"
+                f"**Description:**\n{c.criterion_description_md}"
+                for c in request.criteria
+            ])
+            max_score = 5
             
             criteria_map = {
-                (c.criterion_code, c.criterion_name): c
+                c.criterion_id: c
                 for c in request.criteria
             }
 
             inputs = {
-                "rubric_name": request.rubric_name,
-                "rubric_description_md": request.rubric_description_md,
-                "criteria_descriptions": criteria_descriptions,
+                "criteria_descriptions": formatted_criteria,
                 "interviewer_message": request.interviewer_message,
                 "user_message": request.user_message,
-                "max_score": int(max_score),
+                "max_score": max_score,
             }
 
             result = await self.feedback_and_score_chain.ainvoke(inputs)
             
+            criteria_total_score = 0
             criteria_scores = []
             for item in result["criteria_scores"]:
-                key = (item.get("criterion_code", ""), item.get("criterion_name", ""))
-                if key in criteria_map:
-                    criterion = criteria_map[key]
+                criterion_id = item.get("criterion_id", "")
+                if criterion_id in criteria_map:
+                    criterion = criteria_map[criterion_id]
                     criteria_scores.append(CriteriaScore(
-                        criterion_id=criterion.criterion_id,
+                        criterion_id=criterion_id,
                         criterion_code=criterion.criterion_code,
                         criterion_name=criterion.criterion_name,
                         criterion_score=item["criterion_score"],
                         criterion_feedback=item["criterion_feedback"]
                     ))
+                    criteria_total_score += item["criterion_score"] * float(criterion.criterion_weight)
                 else:
-                    logger.warning(f"Could not map criterion: {item.get('criterion_code', 'N/A')} - {item.get('criterion_name', 'N/A')}")
+                    logger.warning(f"Could not map criterion with ID: {criterion_id}")
             
-            total_weighted_score = 0
-            total_weight = 0
-            
-            for criteria_score in criteria_scores:
-                original_criterion = next(
-                    (c for c in request.criteria if c.criterion_id == criteria_score.criterion_id), 
-                    None
-                )
-                if original_criterion:
-                    weight = float(original_criterion.criterion_weight)
-                    total_weighted_score += criteria_score.criterion_score * weight
-                    total_weight += weight
-            
-            overall_score = total_weighted_score / total_weight if total_weight > 0 else 0
-            formatted_score = int(overall_score) if overall_score.is_integer() else round(overall_score, 2)
-            
-            return FeedbackAndScoreResponse(
-                overall_score=formatted_score,
+            overall_score = criteria_total_score
+            resp = FeedbackAndScoreResponse(
+                overall_score=overall_score,
                 overall_feedback=result["overall_feedback"],
                 criteria_scores=criteria_scores,
                 improvement_sentence=result["improvement_sentence"],
                 llm_model=self.llm_model
             )
+            
+            return resp
 
         except Exception as e:
             logger.error(f"[Feedback and Score Service Error]: {e}")

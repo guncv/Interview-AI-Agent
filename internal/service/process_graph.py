@@ -278,7 +278,7 @@ class InterviewProcessingGraph:
         )
 
         if isinstance(prompt_input, str):
-            invoke_data = {"input": prompt_input}
+            invoke_data = {"input": "I'm doing well thank you and you?"}
         else:
             invoke_data = prompt_input
 
