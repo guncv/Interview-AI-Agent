@@ -12,10 +12,7 @@ T = TypeVar('T')
 STATE_TTL_SECONDS = RedisKeys.STATE_TTL_SECONDS.value
 STATE_PREFIX = RedisKeys.STATE_PREFIX.value
 LOCK_PREFIX = RedisKeys.LOCK_PREFIX.value
-SEGMENT_STT_PREFIX = RedisKeys.SEGMENT_STT_PREFIX.value
-PREV_SEGMENT_CHUNK_PREFIX = RedisKeys.PREV_SEGMENT_CHUNK_PREFIX.value
-BIAS_PROMPT_PREFIX = RedisKeys.BIAS_PROMPT_PREFIX.value
-PREV_SEGMENT_STT_PREFIX = RedisKeys.PREV_SEGMENT_STT_PREFIX.value
+SEGMENT_AUDIO_PREFIX = RedisKeys.SEGMENT_AUDIO_PREFIX.value
 
 class RedisClient:
     def __init__(self):
@@ -28,21 +25,12 @@ class RedisClient:
             self._redis = Redis.from_url(self.redis_url, decode_responses=False)
         return self._redis
 
-    def _segment_stt_key(self, session_id: str, segment_id: str) -> str:
-        return f"{SEGMENT_STT_PREFIX}:{session_id}:{segment_id}"
-
-    def _prev_segment_key(self, session_id: str, segment_id: str) -> str:
-        return f"{PREV_SEGMENT_CHUNK_PREFIX}:{session_id}:{segment_id}"
-
-    def _prev_segment_stt_key(self, session_id: str, segment_id: str) -> str:
-        return f"{PREV_SEGMENT_STT_PREFIX}:{session_id}:{segment_id}"
+    def _segment_audio_key(self, session_id: str, segment_id: str) -> str:
+        return f"{SEGMENT_AUDIO_PREFIX}:{session_id}:{segment_id}"
 
     def _state_key(self, session_id: str) -> str:
         return f"{STATE_PREFIX}:{session_id}"
-
-    def _bias_prompt_key(self, session_id: str) -> str:
-        return f"{BIAS_PROMPT_PREFIX}:{session_id}"
-
+    
     def _default_json_converter(self, obj):
         if isinstance(obj, Enum):
             return obj.value
@@ -79,75 +67,20 @@ class RedisClient:
         self._save_model_state(session_id, state)
 
     def load_interview_state(self, session_id: str) -> Optional[InterviewState]:
-        return self._load_model_state(session_id, InterviewState)
+        return self._load_model_state(session_id, InterviewState) 
     
-    def save_prev_segment_chunk(self, session_id: str, segment_id: str, chunk: bytes) -> None:
-        key = self._prev_segment_key(session_id, segment_id)
-        self.redis.set(key, chunk)
-    
-    def get_prev_segment_chunk(self, session_id: str, segment_id: str) -> bytes:
-        key = self._prev_segment_key(session_id, segment_id)
-        prev_segment = self.redis.get(key)
-        return prev_segment if prev_segment else None
-    
-    def save_prev_segment_stt(self, session_id: str, segment_id: str, prev_segment_stt: SpeechRecognize) -> None:
-        key = self._prev_segment_stt_key(session_id, segment_id)
-        self.redis.set(key, json.dumps(dataclasses.asdict(prev_segment_stt)))
-    
-    def get_prev_segment_stt(self, session_id: str, segment_id: str) -> Optional[SpeechRecognize]:
-        key = self._prev_segment_stt_key(session_id, segment_id)
-        prev_segment_stt = self.redis.get(key)
-        if not prev_segment_stt:
-            return None
+    def save_segment_audio(self, session_id: str, segment_id: str, audio: bytes) -> None:
+        key = self._segment_audio_key(session_id, segment_id)
+        self.redis.set(key, audio)
 
-        data = json.loads(prev_segment_stt)
-        words = [Word(**word_data) for word_data in data['words']]
-        return SpeechRecognize(transcript=data['transcript'], words=words)
-    
-    def save_segment_stt(self, session_id: str, segment_id: str, stt: str) -> None:
-        key = self._segment_stt_key(session_id, segment_id)
+    def get_segment_audio(self, session_id: str, segment_id: str) -> Optional[bytes]:
+        key = self._segment_audio_key(session_id, segment_id)
+        audio_data = self.redis.get(key)
+        return audio_data if audio_data else None
 
-        segment_data = self.redis.get(key)
-        if segment_data:
-            segment_data = json.loads(segment_data)
-        else:
-            segment_data = []
-
-        segment_data.append(stt)
-
-        self.redis.set(key, json.dumps(segment_data))
-
-    def get_segment_stt(self, session_id: str, segment_id: str) -> Optional[List[str]]:
-        key = self._segment_stt_key(session_id, segment_id)
-        segment_data = self.redis.get(key)
-        if segment_data:
-            return json.loads(segment_data)
-        return None
-
-    def clear_segment_stt(self, session_id: str, segment_id: str) -> None:
-        key = self._segment_stt_key(session_id, segment_id)
+    def clear_segment_audio(self, session_id: str, segment_id: str) -> None:
+        key = self._segment_audio_key(session_id, segment_id)
         self.redis.delete(key)
-    
-    def clear_prev_segment_stt(self, session_id: str, segment_id: str) -> None:
-        key = self._prev_segment_stt_key(session_id, segment_id)
-        self.redis.delete(key)
-        
-    def clear_prev_segment_chunk(self, session_id: str, segment_id: str) -> None:
-        key = self._prev_segment_key(session_id, segment_id)
-        self.redis.delete(key)
-    
-    def save_session_bias_prompt(self, session_id: str, bias_prompt: List[str], ttl_seconds: Optional[int] = None) -> None:
-        key = self._bias_prompt_key(session_id)
-        if ttl_seconds is not None:
-            self.redis.setex(key, ttl_seconds, json.dumps(bias_prompt))
-        else:
-            self.redis.set(key, json.dumps(bias_prompt))
-        
-    def get_session_bias_prompt(self, session_id: str) -> Optional[List[str]]:
-        key = self._bias_prompt_key(session_id)
-        bias_prompt = self.redis.get(key)
-        
-        return json.loads(bias_prompt) if bias_prompt else None
 
     def clear_state(self, session_id: str) -> None:
         self.redis.delete(self._state_key(session_id))

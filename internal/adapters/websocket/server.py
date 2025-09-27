@@ -230,6 +230,7 @@ class WebSocketServer:
 
             req = AudioChunkMessage(
                 type=msg_type,
+                session_id=session_id,
                 segment_id=segment_id,
                 audio_data=audio_data,
             )

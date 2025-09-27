@@ -46,6 +46,9 @@ class WebSocketServerCallback:
 
     async def handle_audio_chunk(self, client: WebSocketClient, audio_message: AudioChunkMessage):
         try:
+            if audio_message.session_id != client.session_id:
+                raise ValueError(f"Session ID mismatch: {audio_message.session_id} != {client.session_id}")
+            
             if audio_message.segment_id != client.current_segment_id:
                 raise ValueError(f"Segment ID mismatch: {audio_message.segment_id} != {client.current_segment_id}")
 
@@ -63,12 +66,14 @@ class WebSocketServerCallback:
             if request.segment_id != client.current_segment_id:
                 raise ValueError(f"Segment ID mismatch: {request.segment_id} != {client.current_segment_id}")
             
-            curr_transcript = self.websocket_service.redis_client.get_segment_stt(client.session_id, request.segment_id)
-            final_transcript = " ".join(curr_transcript) if curr_transcript else ""
-            logger.info(f"[WebSocketServerCallback: handle segment end] Final joined transcript: {final_transcript}")
+            curr_audio = self.websocket_service.redis_client.get_segment_audio(client.session_id, request.segment_id)
 
-            self.websocket_service.redis_client.clear_segment_stt(client.session_id, request.segment_id)
+            if curr_audio is None:
+                raise ValueError(f"Audio not found for segment: {request.segment_id}")
 
+            self.websocket_service.redis_client.clear_segment_audio(client.session_id, request.segment_id)
+
+            final_transcript = await self.websocket_service.stt_client.transcribe(curr_audio, client.session_id)
             client.current_segment_id = None
             
             if client.is_connected:
@@ -78,7 +83,7 @@ class WebSocketServerCallback:
                         "author": WebSocketMessageAuthor.USER,
                         "session_id": client.session_id,
                         "segment_id": request.segment_id,
-                        "transcript": final_transcript
+                        "transcript": final_transcript.transcript
                     }))
                     
                     await client.websocket.send_text(json.dumps({
@@ -86,7 +91,7 @@ class WebSocketServerCallback:
                         "session_id": client.session_id
                     }))
                     
-                    await self.websocket_service.get_interviewer_response(client, final_transcript)
+                    await self.websocket_service.get_interviewer_response(client, final_transcript.transcript)
                     
                 except WebSocketDisconnect:
                     logger.warning(f"[WebSocketServerCallback: handle segment end] WebSocket disconnected, skipping response")

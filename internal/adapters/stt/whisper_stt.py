@@ -1,11 +1,15 @@
+import os
 import io
-import wave
+import tempfile
+import subprocess
 from typing import List
+
 from openai import OpenAI, OpenAIError
 from internal.adapters.log.logger import logger
 from internal.config.config import nested_config as config
 from internal.domain.models.speech_recognize import SpeechRecognize, Word
 from internal.domain.ports.stt_port import STTPort
+
 
 class WhisperSpeechToText(STTPort):
     def __init__(self):
@@ -13,30 +17,36 @@ class WhisperSpeechToText(STTPort):
         self.client = OpenAI(api_key=self.api_key)
         self.model = "whisper-1"
 
-    async def _wrap_wav_bytes(self, audio_bytes: bytes) -> io.BytesIO:
-        logger.debug("[Whisper STT] Wrapping audio bytes into WAV format")
-        buffer = io.BytesIO()
-        with wave.open(buffer, 'wb') as wav_file:
-            wav_file.setnchannels(1)
-            wav_file.setsampwidth(2)
-            wav_file.setframerate(16000)
-            wav_file.writeframes(audio_bytes)
-        buffer.seek(0)
-        buffer.name = "audio.wav"
-        return buffer
-
-    async def _clean_transcript(self, text: str) -> str:
-        cleaned = text.strip()
-        return cleaned[:-3].rstrip() if cleaned.endswith("...") else cleaned
-
     async def transcribe(self, audio_chunk: bytes, session_id: str) -> SpeechRecognize:
         logger.info(f"[Whisper STT] Transcribing audio | Session: {session_id}")
 
         try:
-            audio_file = await self._wrap_wav_bytes(audio_chunk)
+            with tempfile.TemporaryDirectory() as tmpdir:
+                input_path = os.path.join(tmpdir, "input.webm")
+                output_path = os.path.join(tmpdir, "output.wav")
+
+                with open(input_path, "wb") as f:
+                    f.write(audio_chunk)
+ 
+                ffmpeg_cmd = [
+                    "ffmpeg", "-y",
+                    "-i", input_path,
+                    "-ac", "1",
+                    "-ar", "16000",
+                    "-f", "wav",
+                    output_path
+                ]
+                proc = subprocess.run(ffmpeg_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                if proc.returncode != 0:
+                    logger.error(f"[FFmpeg Error] {proc.stderr.decode()}")
+                    raise RuntimeError("FFmpeg failed to convert WebM to WAV")
+
+                with open(output_path, "rb") as f:
+                    wav_buffer = io.BytesIO(f.read())
+                    wav_buffer.name = "audio.wav"
 
             response = self.client.audio.transcriptions.create(
-                file=audio_file,
+                file=wav_buffer,
                 model=self.model,
                 response_format="verbose_json",
                 language="en",
@@ -44,16 +54,18 @@ class WhisperSpeechToText(STTPort):
             )
 
             logger.debug(f"[Whisper STT] API response: {response}")
-            transcript = await self._clean_transcript(response.text)
-            words: List[Word] = []
 
+            raw_text = response.text.strip()
+            transcript = raw_text[:-3].rstrip() if raw_text.endswith("...") else raw_text
+
+            words: List[Word] = []
             if hasattr(response, "words") and response.words:
                 words = [
                     Word(
                         word=w.word.strip(),
                         start=w.start,
                         end=w.end,
-                        confidence=1.0
+                        confidence=getattr(w, "confidence", 1.0) or 1.0
                     )
                     for w in response.words
                 ]

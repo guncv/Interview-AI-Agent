@@ -45,6 +45,7 @@ class ErrorMessage:
 @dataclass
 class AudioChunkMessage:
     type: str
+    session_id: str
     segment_id: str
     audio_data: bytes
 
