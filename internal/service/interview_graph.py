@@ -43,8 +43,6 @@ class InterviewGraph:
         return wf.compile()
 
     def _query_vector_db_node(self, state: InterviewState) -> InterviewState:
-        logger.info(f"[QUERY VECTOR DB]: input={state.user_input}")
-        
         if not state.user_input or not state.user_input.strip():
             logger.info("[QUERY VECTOR DB]: Skipping vector DB query due to empty user input")
             return state.model_copy(update={
@@ -72,37 +70,28 @@ class InterviewGraph:
                     "context_prompt": resume_text,
                 })
         except Exception as e:
-            logger.exception("[QUERY VECTOR DB] error")
             return state.model_copy(update={
                 "error_message": str(e),
             })
 
     async def _process_answer_node(self, state: InterviewState) -> InterviewState:
-        logger.info(f"[PROCESS ANSWER]: state={state}")
-        
         answer = await self.process_graph.invoke(state)
         try:
             return answer
-        except Exception as e:
-            logger.exception("[PROCESS ANSWER] error")
+        except Exception as e:  
             return state.model_copy(update={
                 "error_message": str(e),
             })
 
     async def _store_answer_node(self, state: InterviewState) -> InterviewState:
-        logger.info(f"[STORE ANSWER]: state={state}")
-
         try:
             return state
         except Exception as e:
-            logger.exception("[STORE ANSWER] error")
             return state.model_copy(update={
                 "error_message": str(e),
             })
 
     async def invoke(self, session_id: str, user_input: str) -> InterviewState:
-        logger.info(f"[InterviewGraph.invoke]: session_id={session_id}, user_input={user_input}")
-        
         locked = acquire_lock(session_id)
         try:
             prev_state = load_state(session_id)
@@ -138,7 +127,6 @@ class InterviewGraph:
             )
 
             normalized = InterviewState(**result) if isinstance(result, dict) else result
-            logger.info(f"[InterviewGraph.invoke]: message={normalized.message}")
 
             if normalized.current_step == InterviewProcessStep.ERROR_HANDLER:
                 clear_state(session_id)
@@ -147,7 +135,6 @@ class InterviewGraph:
                 return normalized
 
         except Exception as e:
-            logger.exception("[InterviewGraph.invoke] exception")
             err = InterviewState(
                 session_id=session_id,
                 user_input=user_input,

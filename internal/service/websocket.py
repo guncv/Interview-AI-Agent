@@ -41,8 +41,7 @@ class WebSocketService:
         logger.info(f"[WebSocketService: handle audio chunk] Called: audio data present")
 
         try:
-            curr_recognize = await self.stt_client.transcribe(audio_message.audio_data, client.session_id)
-            self.redis_client.save_segment_stt(client.session_id, audio_message.segment_id, curr_recognize.transcript)
+            self.redis_client.save_segment_audio(client.session_id, audio_message.segment_id, audio_message.audio_data)
 
         except Exception as e:
             logger.error(f"[WebSocketService: handle audio chunk] Error: {e}")
