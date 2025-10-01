@@ -35,6 +35,7 @@ class SegmentEndMessage:
     type: str
     session_id: str
     segment_id: str
+    bias_prompt: str
 
 @dataclass
 class ErrorMessage:

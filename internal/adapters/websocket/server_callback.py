@@ -1,13 +1,18 @@
 from internal.adapters.log.logger import logger
-from internal.domain.models.websocket import AudioChunkMessage, WebSocketClient, SegmentStartMessage, SegmentEndMessage, StartSessionConversationMessage, TTSAudioChunking
+from internal.domain.models.websocket import (
+    AudioChunkMessage,
+    WebSocketClient,
+    SegmentStartMessage,
+    SegmentEndMessage,
+    StartSessionConversationMessage,
+    TTSAudioChunking
+)
 from internal.service.websocket import WebSocketService
 from internal.domain.enum import WebSocketMessageType
 from starlette.websockets import WebSocketDisconnect
 from internal.domain.enum import WebSocketMessageAuthor
 import json
-import base64
 import struct
-import asyncio
 
 class WebSocketServerCallback:
     def __init__(self):
@@ -73,7 +78,7 @@ class WebSocketServerCallback:
 
             self.websocket_service.redis_client.clear_segment_audio(client.session_id, request.segment_id)
 
-            final_transcript = await self.websocket_service.stt_client.transcribe(curr_audio, client.session_id)
+            final_transcript = await self.websocket_service.stt_client.transcribe(curr_audio, client.session_id, request.bias_prompt)
             client.current_segment_id = None
             
             if client.is_connected:

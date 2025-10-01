@@ -9,6 +9,7 @@ from internal.adapters.log.logger import logger
 from internal.config.config import nested_config as config
 from internal.domain.models.speech_recognize import SpeechRecognize, Word
 from internal.domain.ports.stt_port import STTPort
+from internal.adapters.db.redis import redis_client
 
 
 class WhisperSpeechToText(STTPort):
@@ -17,8 +18,8 @@ class WhisperSpeechToText(STTPort):
         self.client = OpenAI(api_key=self.api_key)
         self.model = "whisper-1"
 
-    async def transcribe(self, audio_chunk: bytes, session_id: str) -> SpeechRecognize:
-        logger.info(f"[Whisper STT] Transcribing audio | Session: {session_id}")
+    async def transcribe(self, audio_chunk: bytes, session_id: str, bias_prompt: str) -> SpeechRecognize:
+        logger.info(f"[Whisper STT] Transcribing audio | Session: {session_id}, Bias Prompt: {bias_prompt[:100]}...")
 
         try:
             with tempfile.TemporaryDirectory() as tmpdir:
@@ -44,13 +45,21 @@ class WhisperSpeechToText(STTPort):
                 with open(output_path, "rb") as f:
                     wav_buffer = io.BytesIO(f.read())
                     wav_buffer.name = "audio.wav"
-
+            
+            if bias_prompt:
+                if len(bias_prompt) > 896:
+                    bias_prompt = bias_prompt[:896]
+                logger.info(f"[Whisper STT] Using bias prompt: {bias_prompt[:100]}...")
+            else:
+                logger.info(f"[Whisper STT] No bias prompt found for session {session_id}")
+            
             response = self.client.audio.transcriptions.create(
                 file=wav_buffer,
                 model=self.model,
                 response_format="verbose_json",
                 language="en",
-                timestamp_granularities=["word"]
+                timestamp_granularities=["word"],
+                prompt=bias_prompt
             )
 
             logger.debug(f"[Whisper STT] API response: {response}")
@@ -69,7 +78,7 @@ class WhisperSpeechToText(STTPort):
                     )
                     for w in response.words
                 ]
-
+            
             return SpeechRecognize(transcript=transcript, words=words)
 
         except OpenAIError as e:

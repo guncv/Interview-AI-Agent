@@ -1,6 +1,5 @@
-import asyncio
 import aiohttp
-from typing import AsyncGenerator, Dict, Optional
+from typing import AsyncGenerator
 from internal.adapters.log.logger import logger
 from internal.config.config import nested_config as config
 from internal.domain.ports.tts_port import TTSPort
@@ -24,7 +23,7 @@ class OpenAITTS(TTSPort):
             "model": self.model,
             "input": text,
             "voice": self.voice,
-            "response_format": "opus"
+            "response_format": "mp3",
         }
 
         try:

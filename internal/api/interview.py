@@ -1,5 +1,4 @@
-from fastapi import APIRouter, Response, UploadFile, File, Form
-from fastapi import status
+from fastapi import APIRouter, UploadFile, File, Form
 from internal.shared.exception import InterviewSimulationException
 from internal.domain.exception import InterviewSimulationErrorCodes
 from internal.adapters.log.logger import logger
@@ -54,9 +53,8 @@ async def requirements_api(
         )
 
         resp = await interview_service.requirements(request)
-        return Response(
-            status_code=status.HTTP_204_NO_CONTENT
-            )
+        logger.info(f"[Requirements API Response]: {resp}")
+        return resp
     except (InterviewSimulationException, Exception) as e:
         if not isinstance(e, InterviewSimulationException):
             e = InterviewSimulationException(

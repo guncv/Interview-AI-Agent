@@ -132,10 +132,12 @@ class WebSocketServer:
         )
 
     def _create_segment_end_message(self, data: dict) -> SegmentEndMessage:
+        logger.info(f"[Websocket: create segment end message]: Data: {data}")
         return SegmentEndMessage(
             type=data["type"],
             session_id=data["session_id"],
-            segment_id=data["segment_id"]
+            segment_id=data["segment_id"],
+            bias_prompt=data["bias_prompt"]
         )
 
     async def _handle_text_message(self, client: WebSocketClient, content: str):
@@ -160,7 +162,7 @@ class WebSocketServer:
                     if not is_valid:
                         await self._send_error(client, WebSocketErrorCode.INVALID_MESSAGE, error_msg)
                         return
-
+                    
                     segment_end_msg = self._create_segment_end_message(data)
                     await self.callbacks.handle_segment_end(client, segment_end_msg)
 

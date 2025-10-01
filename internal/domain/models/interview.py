@@ -20,6 +20,9 @@ class RequirementsRequest(BaseModel):
     resume_file: bytes
     session_id: str
     
+class RequirementsResponse(BaseModel):
+    bias_prompt: str
+    
 class GetOverallSummaryRequest(BaseModel):
     summary_md: List[str]
     
