@@ -21,6 +21,7 @@ class RequirementsRequest(BaseModel):
     
 class RequirementsResponse(BaseModel):
     bias_prompt: str
+    resume_context: str
     
 class GetOverallSummaryRequest(BaseModel):
     summary_md: List[str]

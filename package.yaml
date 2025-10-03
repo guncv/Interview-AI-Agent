@@ -49,3 +49,4 @@ dependencies:
       - numpy
       - language-tool-python>=2.8.0
       - chromadb
+      - psycopg2-binary

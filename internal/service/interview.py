@@ -81,7 +81,9 @@ class InterviewService:
             bias_terms = response.strip()
             
             resp = RequirementsResponse(
-                bias_prompt=bias_terms)
+                bias_prompt=bias_terms,
+                resume_context=resume_text
+            )
             return resp
 
         except (InterviewSimulationException, Exception) as e:
