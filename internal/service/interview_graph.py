@@ -5,18 +5,18 @@ from internal.service.process_graph import InterviewProcessingGraph
 from datetime import datetime, timezone
 from internal.domain.models.interview import InterviewProcessNode
 from internal.adapters.llm.state_store import acquire_lock, load_state, save_state, release_lock, clear_state
-from internal.domain.models.vector import VectorCollections
-from internal.adapters.vector_db.factory import get_vector_store
 from internal.service.prompts.example_question_prompt import EXAMPLE_QUESTIONS_PROMPT
 from internal.adapters.llm.loader import loadLLM
 from langchain_core.runnables import RunnableWithMessageHistory, RunnableLambda
 from internal.adapters.llm.loader import getChatHistory
+from internal.service.interview_session import InterviewSessionService
 
 class InterviewGraph:
     def __init__(self):
         logger.info("[InterviewGraph] Initializing...")
         self.graph = self._build_graph()
         self.process_graph = InterviewProcessingGraph()
+        self.interview_session_service = InterviewSessionService()
         self.llm = loadLLM("example_question")
         logger.info("[InterviewGraph] Initialization complete")
 
@@ -59,119 +59,71 @@ class InterviewGraph:
         logger.info("[InterviewGraph] Graph compiled successfully")
         return compiled_graph
     
-    query_text_map = {
-        InterviewProcessStep.ASK_EXPERIENCE: "Work experience, professional history, past job roles, internships",
-        InterviewProcessStep.ASK_PROJECT: "Projects, open-source work, hackathons, academic projects",
-        InterviewProcessStep.TECHNICAL_QUESTION: "Technical skills, programming languages, frameworks, problem-solving",
-        InterviewProcessStep.BEHAVIORAL_QUESTION: "Soft skills, teamwork, communication, leadership, decision-making"
+
+    resume_section_map = {
+        InterviewProcessStep.ROUTER: [],
+        InterviewProcessStep.INTRO: ["is_experience"],
+        InterviewProcessStep.ASK_EXPERIENCE: ["experience"],
+        InterviewProcessStep.ASK_PROJECT: ["project"],
+        InterviewProcessStep.TECHNICAL_QUESTION: ["skill_technical"],
+        InterviewProcessStep.BEHAVIORAL_QUESTION: ["behavior"],
+        InterviewProcessStep.WRAP_UP: [],
     }
 
     async def _query_vector_db_node(self, state: InterviewState) -> InterviewState:
-        logger.info(f"[QUERY VECTOR DB]: Querying vector database for session {state.session_id} with current step {state.current_step}")
+        logger.info(f"[GET RESUME CONTEXT]: Retrieving resume context for session {state.session_id} with current step {state.current_step}")
         
-        if state.current_step in [InterviewProcessStep.GREETING]:
-            logger.info(f"[QUERY VECTOR DB]: Skipping for {state.current_step.value} - using static questions")
+        if state.current_step in [InterviewProcessStep.GREETING, InterviewProcessStep.ROUTER]:
+            logger.info(f"[GET RESUME CONTEXT]: Skipping for {state.current_step.value} - no resume context needed")
             return state
         
         if not state.go_to_next_step:
-            logger.info(f"[QUERY VECTOR DB]: Skipping query - not transitioning to next step")
+            logger.info(f"[GET RESUME CONTEXT]: Skipping query - not transitioning to next step")
             return state
         
         if not state.session_id:
             return state.model_copy(update={
-                "error_message": "Session ID is required for vector database query"
+                "error_message": "Session ID is required for resume context retrieval"
             })
         
         try:
-            vector_resume_store = get_vector_store(collection_name=VectorCollections.RESUMES)
-            query_config = self._get_query_config(state.current_step)
-            query_text = self.query_text_map.get(state.current_step, "General candidate information")
-
-            results = vector_resume_store.query_by_text(
-                text=query_text,
-                k=query_config["k"],
-                include_documents=True,
-                session_id=state.session_id
+            resume_context = await self.interview_session_service.get_resume_context(state.session_id)
+            logger.info(f"[GET RESUME CONTEXT]: Retrieved resume context: {resume_context}")
+            
+            if not resume_context:
+                logger.error(f"[GET RESUME CONTEXT]: No resume context found for session {state.session_id}")
+                return state.model_copy(update={
+                    "error_message": "Resume context not found. Please upload resume first."
+                })
+            
+            relevant_sections = self.resume_section_map.get(
+                state.current_step,
+                []
             )
             
-            context_text = "\n".join([item.document for item in results.items])
-            logger.info(f"[QUERY VECTOR DB]: Context text: {context_text}")
+            if not relevant_sections:
+                logger.info(f"[GET RESUME CONTEXT]: No resume sections mapped for {state.current_step.value}")
+                return state
+            
+            context_parts = []
+            for section in relevant_sections:
+                if section in resume_context and resume_context[section]:
+                    section_title = section.replace("_", " ").title()
+                    context_parts.append(f"=== {section_title} ===\n{resume_context[section]}")
+            
+            context_text = "\n\n".join(context_parts)
+            logger.info(f"[GET RESUME CONTEXT]: Retrieved context with {len(context_text)} characters from sections: {relevant_sections}")
             
             return state.model_copy(update={
                 "context_prompt": context_text,
             })
             
-        except ValueError as e:
-            logger.error(f"[QUERY VECTOR DB]: Validation error - {str(e)}")
-            return state.model_copy(update={
-                "error_message": f"Invalid query parameters: {str(e)}"
-            })
-            
-        except ConnectionError as e:
-            logger.error(f"[QUERY VECTOR DB]: Connection error - {str(e)}")
-            return state.model_copy(update={
-                "error_message": "Unable to connect to vector database. Please try again."
-            })
-            
         except Exception as e:
-            logger.error(f"[QUERY VECTOR DB]: Unexpected error - {str(e)}", exc_info=True)
+            logger.error(f"[GET RESUME CONTEXT]: Unexpected error - {str(e)}", exc_info=True)
             return state.model_copy(update={
-                "error_message": f"Vector database query failed: {str(e)}"
+                "error_message": f"Resume context retrieval failed: {str(e)}"
             })
     
-    def _get_query_config(self, current_step: InterviewProcessStep) -> dict:
-        configs = {
-            InterviewProcessStep.INTRO: {
-                "k": 100,
-                "min_score": 0.3,
-                "max_context_length": 0,
-                "include_metadata": True
-            },
-            InterviewProcessStep.GREETING: {
-                "k": 100,
-                "min_score": 0.4,
-                "max_context_length": 0,
-                "include_metadata": False
-            },
-            InterviewProcessStep.ASK_EXPERIENCE: {
-                "k": 15,
-                "min_score": 0.5,
-                "max_context_length": 3000,
-                "include_metadata": True
-            },
-            InterviewProcessStep.ASK_PROJECT: {
-                "k": 10,
-                "min_score": 0.6,
-                "max_context_length": 2500,
-                "include_metadata": True
-            },
-            InterviewProcessStep.TECHNICAL_QUESTION: {
-                "k": 8,
-                "min_score": 0.7,
-                "max_context_length": 2000,
-                "include_metadata": True
-            },
-            InterviewProcessStep.BEHAVIORAL_QUESTION: {
-                "k": 5,
-                "min_score": 0.6,
-                "max_context_length": 1500,
-                "include_metadata": False
-            },
-            InterviewProcessStep.WRAP_UP: {
-                "k": 20,
-                "min_score": 0.4,
-                "max_context_length": 4000,
-                "include_metadata": True
-            }
-        }
-        
-        return configs.get(current_step, {
-            "k": 10,
-            "min_score": 0.5,
-            "max_context_length": 3000,
-            "include_metadata": True
-        })
-        
     async def _get_example_question_node(self, state: InterviewState) -> InterviewState:
         logger.info(f"[GET EXAMPLE QUESTIONS]: Getting example questions for session {state.session_id} with current step {state.current_step}")
         try:

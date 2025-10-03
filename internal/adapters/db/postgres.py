@@ -65,7 +65,7 @@ class PostgresClient(DatabasePort):
             self._connection = None
             logger.info("[PostgresClient] Disconnected from database")
     
-    def execute_query(self, query: str, params: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+    async def execute_query(self, query: str, params: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         try:
             cursor = self.connection.cursor()
             cursor.execute(query, params or {})
@@ -93,7 +93,7 @@ class PostgresClient(DatabasePort):
             logger.error(f"[PostgresClient] Params: {params}")
             raise
     
-    def get_resume_context_by_session_id(self, session_id: str) -> Optional[Dict[str, Any]]:
+    async def get_resume_context_by_session_id(self, session_id: str) -> Optional[Dict[str, Any]]:
         query = """
             SELECT resume_context
             FROM interview_sessions
@@ -102,7 +102,7 @@ class PostgresClient(DatabasePort):
             LIMIT 1
         """
         
-        results = self.execute_query(query, {"session_id": session_id})
+        results = await self.execute_query(query, {"session_id": session_id})
         
         if not results or not results[0].get("resume_context"):
             return None

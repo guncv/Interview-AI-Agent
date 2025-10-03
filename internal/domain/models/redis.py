@@ -6,3 +6,5 @@ class RedisKeys(Enum):
     STATE_PREFIX = "interview-sim:state"
     LOCK_PREFIX = "interview-sim:lock"
     SEGMENT_AUDIO_PREFIX = "interview-sim:segment_audio"
+    RESUME_CONTEXT_PREFIX = "interview-sim:resume_context"
+    RESUME_CONTEXT_TTL_SECONDS = 3600  # 1 hour cache for resume context

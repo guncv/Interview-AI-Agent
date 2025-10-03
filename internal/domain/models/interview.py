@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from enum import Enum
 from typing import List, Optional
 
@@ -19,6 +19,14 @@ class RequirementsRequest(BaseModel):
     resume_file: bytes
     session_id: str
     
+class ResumeStructured(BaseModel):
+    intro: str
+    experience: str
+    project: str
+    skill_technical: str
+    behavior: str
+    is_experience: bool
+
 class RequirementsResponse(BaseModel):
     bias_prompt: str
     resume_context: str
