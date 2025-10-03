@@ -31,7 +31,7 @@ def save_state(session_id: str, state: InterviewState) -> None:
             return obj.value
         raise TypeError(f'Object of type {obj.__class__.__name__} is not JSON serializable')
     
-    state_dict = state.model_dump(exclude={"client"})
+    state_dict = state.model_dump()
     r.setex(_state_key(session_id), STATE_TTL_SECONDS, json.dumps(state_dict, ensure_ascii=False, default=enum_converter))
 
 def load_state(session_id: str) -> Optional[InterviewState]:
@@ -39,26 +39,7 @@ def load_state(session_id: str) -> Optional[InterviewState]:
     if not raw:
         return None
     
-    # Load the state data from Redis
     state_data = json.loads(raw)
-    
-    # The client field is excluded when saving and will be provided fresh during invoke
-    # We need to create a temporary client to satisfy Pydantic validation
-    # This gets replaced immediately in the invoke method
-    if 'client' not in state_data:
-        from internal.domain.models.websocket import WebSocketClient
-        from fastapi import WebSocket
-        
-        # Create a temporary WebSocket client that will be replaced
-        temp_websocket = None  # This will be replaced before use
-        temp_client = WebSocketClient(
-            websocket=temp_websocket,
-            user_id="temp",
-            session_id=session_id,
-            resume_id="temp",
-            is_connected=False
-        )
-        state_data['client'] = temp_client
     
     return InterviewState(**state_data)
 

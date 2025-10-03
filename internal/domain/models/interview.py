@@ -1,6 +1,5 @@
-import string
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from enum import Enum
 from typing import List, Optional
 
@@ -20,8 +19,17 @@ class RequirementsRequest(BaseModel):
     resume_file: bytes
     session_id: str
     
+class ResumeStructured(BaseModel):
+    intro: str
+    experience: str
+    project: str
+    skill_technical: str
+    behavior: str
+    is_experience: bool
+
 class RequirementsResponse(BaseModel):
     bias_prompt: str
+    resume_context: str
     
 class GetOverallSummaryRequest(BaseModel):
     summary_md: List[str]
@@ -63,14 +71,16 @@ class QueryVectorDBRes(BaseModel):
     
 class InterviewStep(Enum):
     QUERY_VECTOR_DB = 1
-    PROCESS_ANSWER = 2
-    STORE_ANSWER = 3
-    END_TURN = 4
+    GET_EXAMPLE_QUESTION = 2
+    PROCESS_ANSWER = 3
+    STORE_ANSWER = 4
+    END_TURN = 5
     ERROR = -1
     
 class InterviewNode(Enum):
     ROUTER = "router"
     QUERY_VECTOR_DB = "query_vector_db"
+    GET_EXAMPLE_QUESTION = "get_example_question"
     PROCESS_ANSWER = "process_answer"
     STORE_ANSWER = "store_answer"
     END_TURN = "end_turn"
@@ -105,6 +115,8 @@ class InterviewState(BaseModel):
     user_input: str
     context_prompt: str
     message: str
+    position: str
+    example_questions: List[str]
     current_storing_node: InterviewProcessNode
     start_at: str
     end_at: str
@@ -135,5 +147,6 @@ class PostProcessedCriteria(BaseModel):
 class PostProcessedCriteriaResp(BaseModel):
 	criteria: List[PostProcessedCriteria]
 
-
+class ExampleQuestionsResponse(BaseModel):
+    example_questions: List[str]
 

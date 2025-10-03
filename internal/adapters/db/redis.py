@@ -13,6 +13,8 @@ STATE_TTL_SECONDS = RedisKeys.STATE_TTL_SECONDS.value
 STATE_PREFIX = RedisKeys.STATE_PREFIX.value
 LOCK_PREFIX = RedisKeys.LOCK_PREFIX.value
 SEGMENT_AUDIO_PREFIX = RedisKeys.SEGMENT_AUDIO_PREFIX.value
+RESUME_CONTEXT_PREFIX = RedisKeys.RESUME_CONTEXT_PREFIX.value
+RESUME_CONTEXT_TTL_SECONDS = RedisKeys.RESUME_CONTEXT_TTL_SECONDS.value
 
 class RedisClient:
     def __init__(self):
@@ -30,6 +32,9 @@ class RedisClient:
 
     def _state_key(self, session_id: str) -> str:
         return f"{STATE_PREFIX}:{session_id}"
+    
+    def _resume_context_key(self, session_id: str) -> str:
+        return f"{RESUME_CONTEXT_PREFIX}:{session_id}"
     
     def _default_json_converter(self, obj):
         if isinstance(obj, Enum):
@@ -90,6 +95,18 @@ class RedisClient:
 
     def release_lock(self, session_id: str) -> None:
         self.redis.delete(f"{LOCK_PREFIX}:{session_id}")
+    
+    async def save_resume_context(self, session_id: str, resume_context: Dict[str, Any], ttl_seconds: Optional[int] = None) -> None:
+        key = self._resume_context_key(session_id)
+        ttl = ttl_seconds or RESUME_CONTEXT_TTL_SECONDS
+        self.redis.setex(key, ttl, json.dumps(resume_context, ensure_ascii=False, default=self._default_json_converter))
+    
+    async def load_resume_context(self, session_id: str) -> Optional[Dict[str, Any]]:
+        key = self._resume_context_key(session_id)
+        raw = self.redis.get(key)
+        if not raw:
+            return None
+        return json.loads(raw)
 
     def close(self):
         if self._redis:

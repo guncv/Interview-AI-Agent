@@ -76,6 +76,31 @@ class LLM:
                     model=self.model,
                     temperature=self.temperature,
                 )
+        elif type == "example_question":
+            if self.provider == "openai":
+                from langchain_openai import ChatOpenAI
+                logger.info(f"[loadLLM: Called]: {self.model}")
+                return ChatOpenAI(
+                    openai_api_key=self.api_key,
+                    model=self.model,
+                    temperature=self.temperature,
+                )
+            elif self.provider == "deepseek":
+                from langchain_deepseek import ChatDeepSeek
+                logger.info(f"[loadLLM: Called]: {self.model}")
+                return ChatDeepSeek(
+                    api_key=self.api_key,
+                    model=self.model,
+                    temperature=self.temperature,
+                )
+            elif self.provider == "anthropic":
+                from langchain_anthropic import ChatAnthropic
+                logger.info(f"[loadLLM: Called]: {self.model}")
+                return ChatAnthropic(
+                    anthropic_api_key=self.api_key,
+                    model=self.model,
+                    temperature=self.temperature,
+                )
         else:
             raise ValueError("Unsupported LLM provider")
     

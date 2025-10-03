@@ -5,7 +5,7 @@ transcribe:
   api_key: ${TRANSCRIBE_OPENAI_API_KEY}
 
 extract_resume:
-  model: gpt-4o-mini
+  model: gpt-3.5-turbo
   api_provider: openai
   temperature: 0.5
   api_key: ${EXTRACT_RESUME_OPENAI_API_KEY}
@@ -13,8 +13,15 @@ extract_resume:
 interview:
   model: gpt-4o-mini
   api_provider: openai
-  temperature: 0.5
+  temperature: 0.1
+  max_tokens: 2000
   api_key: ${EXTRACT_RESUME_OPENAI_API_KEY}
+
+example_question:
+  model: gpt-3.5-turbo
+  api_provider: openai
+  temperature: 0.3
+  api_key: ${EXAMPLE_QUESTION_OPENAI_API_KEY}
 
 memory:
   provider: qdrant
