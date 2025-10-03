@@ -9,6 +9,8 @@ class WebSocketClient:
     user_id: str
     session_id: str
     resume_id: str
+    position: str
+    bias_prompt: str
     is_connected: bool = True
     current_segment_id: Optional[str] = None
 
@@ -35,7 +37,6 @@ class SegmentEndMessage:
     type: str
     session_id: str
     segment_id: str
-    bias_prompt: str
 
 @dataclass
 class ErrorMessage:

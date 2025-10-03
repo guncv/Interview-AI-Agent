@@ -6,8 +6,6 @@ from internal.adapters.llm.state_store import save_state, clearMemory
 from langgraph.checkpoint.memory import MemorySaver
 from internal.service.prompts.interview_prompt import INTRO_PROMPT, ASK_EXPERIENCE_PROMPT, ASK_PROJECT_PROMPT, GREETING_PROMPT, ASK_TECHNICAL_PROMPT, ASK_BEHAVIORAL_PROMPT, WRAP_UP_PROMPT
 from internal.adapters.llm.loader import getChatHistory, loadLLM
-from internal.domain.models.vector import VectorCollections
-from internal.adapters.vector_db.factory import get_vector_store
 from langchain_core.runnables import RunnableWithMessageHistory
 from datetime import datetime, timezone
 from langchain_core.prompts import ChatPromptTemplate
@@ -82,13 +80,12 @@ class InterviewProcessingGraph:
         if state.go_to_next_step:
             try:
                 clearMemory(state.session_id)
-                logger.info(f"[MEMORY] Cleared memory for session {state.session_id}")
             except Exception:
                 logger.exception(f"[MEMORY] Failed to clear memory for session {state.session_id}")
         return "pause"
 
     def _greeting_node(self, state: InterviewState) -> InterviewState:
-        logger.info("[GREETING] Greeting the candidate")
+        logger.info(f"[GREETING]: Running greeting node for session {state.session_id}")
         
         return self._run_step(
             state,
@@ -100,8 +97,8 @@ class InterviewProcessingGraph:
         )
 
     def _intro_node(self, state: InterviewState) -> InterviewState:
-        logger.info("[INTRO] Asking candidate to introduce themselves")
-            
+        logger.info(f"[INTRO]: Running intro node for session {state.session_id}")
+        
         return self._run_step(
             state,
             INTRO_PROMPT,
@@ -116,8 +113,8 @@ class InterviewProcessingGraph:
 
 
     def _experience_node(self, state: InterviewState) -> InterviewState:
-        logger.info("[EXPERIENCE] Asking candidate to tell you about their work experience")
-
+        logger.info(f"[ASK EXPERIENCE]: Running experience node for session {state.session_id}")
+        
         return self._run_step(
             state,
             ASK_EXPERIENCE_PROMPT,
@@ -128,8 +125,8 @@ class InterviewProcessingGraph:
         )
 
     def _projects_node(self, state: InterviewState) -> InterviewState:
-        logger.info("[PROJECTS] Asking candidate to tell you about their projects")
-
+        logger.info(f"[ASK PROJECT]: Running projects node for session {state.session_id}")
+        
         return self._run_step(
             state,
             ASK_PROJECT_PROMPT,
@@ -140,8 +137,8 @@ class InterviewProcessingGraph:
         )
 
     def _technical_node(self, state: InterviewState) -> InterviewState:
-        logger.info("[TECHNICAL] Asking candidate to tell you about their technical skills")
-
+        logger.info(f"[TECHNICAL QUESTION]: Running technical node for session {state.session_id}")
+        
         return self._run_step(
             state,
             ASK_TECHNICAL_PROMPT,
@@ -152,8 +149,8 @@ class InterviewProcessingGraph:
         )
 
     def _behavior_node(self, state: InterviewState) -> InterviewState:
-        logger.info("[BEHAVIOR] Asking candidate to tell you about a time they had to deal with a difficult situation")
-
+        logger.info(f"[BEHAVIORAL QUESTION]: Running behavior node for session {state.session_id}")
+        
         return self._run_step(
             state,
             ASK_BEHAVIORAL_PROMPT,
@@ -164,8 +161,8 @@ class InterviewProcessingGraph:
         )
 
     def _wrap_up_node(self, state: InterviewState) -> InterviewState:
-        logger.info("[WRAP_UP] Asking candidate to tell you about a time they had to deal with a difficult situation")
-
+        logger.info(f"[WRAP UP]: Running wrap up node for session {state.session_id}")
+        
         return self._run_step(
             state,
             WRAP_UP_PROMPT,
@@ -177,6 +174,8 @@ class InterviewProcessingGraph:
         )
 
     def _error_handler_node(self, state: InterviewState) -> InterviewState:
+        logger.info(f"[ERROR HANDLER]: Running error handler node for session {state.session_id}")
+        
         logger.error(f"[ERROR HANDLER] Processing error: {state.error_message}")
         start_date = datetime.now(timezone.utc).isoformat()
         out = ProcessPromptResponse(message=state.error_message, next_step="ERROR_HANDLER", go_to_next_step=False)
@@ -186,7 +185,7 @@ class InterviewProcessingGraph:
             out,
             InterviewProcessNode.ERROR_HANDLER,
             InterviewProcessStep.ERROR_HANDLER,
-            {},
+            False,
         )
 
     def _run_step(
@@ -199,11 +198,13 @@ class InterviewProcessingGraph:
         step_map: dict[str, InterviewProcessStep],
         always_continue: bool = False,
     ) -> InterviewState:
-        logger.info(f"[RUN STEP] Running step: {current_step}")
+
+        example_questions_formatted = self._format_example_questions(state.example_questions)
         
         context_prompt_input = {
             "input": state.user_input.strip() or fallback_input,
             "resume_info": state.context_prompt,
+            "example_questions_formatted": example_questions_formatted,
         }
         
         start_date = datetime.now(timezone.utc).isoformat()
@@ -212,7 +213,19 @@ class InterviewProcessingGraph:
         next_step = step_map.get(out.next_step, current_step)
         go_to_next_step = always_continue or (next_step != current_step)
 
+        logger.info(f"[RUN STEP]: Running step {current_step} for session {state.session_id} with next step {next_step} and go_to_next_step {go_to_next_step}")
+
         return self._update_state_with_message(state, start_date, out, current_state, next_step, go_to_next_step)
+    
+    def _format_example_questions(self, example_questions: list[str]) -> str:
+        if not example_questions:
+            return "No example questions available. Please generate appropriate questions based on the context."
+        
+        formatted = []
+        for i, question in enumerate(example_questions, 1):
+            formatted.append(f"{i}. {question}")
+        
+        return "\n".join(formatted)
 
     def _update_state_with_message(
         self,
@@ -223,7 +236,6 @@ class InterviewProcessingGraph:
         next_step: InterviewProcessStep,
         go_to_next_step: bool,
     ) -> InterviewState:
-        logger.info(f"[UPDATE STATE WITH MESSAGE] Updating state with message: {out.message}")
         
         now = datetime.now(timezone.utc).isoformat()
     
@@ -239,7 +251,6 @@ class InterviewProcessingGraph:
         )
 
     def _invoke_node(self, prompt, session_id, prompt_input):
-        logger.info(f"[INVOKE NODE] Invoking node: {prompt}")
         runnable_struct = prompt | self.llm.with_structured_output(ProcessPromptResponse)
 
         def to_both(x):
@@ -293,7 +304,6 @@ class InterviewProcessingGraph:
         return ProcessPromptResponse(**data["raw"])
 
     async def invoke(self, state: InterviewState) -> InterviewState:
-        logger.info(f"[InterviewProcessingGraph.invoke] Called:")
         
         try:
             result = await self.graph.ainvoke(state)
@@ -309,6 +319,8 @@ class InterviewProcessingGraph:
                 current_step=InterviewProcessStep.ERROR_HANDLER,
                 message="",
                 context_prompt="",
+                position="",
+                example_questions=[],
                 current_storing_node=InterviewProcessNode.GREETING,
                 start_at=datetime.now(timezone.utc).isoformat(),
                 end_at=datetime.now(timezone.utc).isoformat(),

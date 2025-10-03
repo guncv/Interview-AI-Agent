@@ -78,7 +78,7 @@ class WebSocketServerCallback:
 
             self.websocket_service.redis_client.clear_segment_audio(client.session_id, request.segment_id)
 
-            final_transcript = await self.websocket_service.stt_client.transcribe(curr_audio, client.session_id, request.bias_prompt)
+            final_transcript = await self.websocket_service.stt_client.transcribe(curr_audio, client.session_id, client.bias_prompt)
             client.current_segment_id = None
             
             if client.is_connected:

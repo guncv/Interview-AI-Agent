@@ -22,6 +22,8 @@ async def get_websocket_params(
         "user_id": payload["user_id"],
         "resume_id": payload["resume_id"],
         "session_id": payload["session_id"],
+        "position": payload["position"],
+        "bias_prompt": payload["bias_prompt"],
     }
 
 @router.websocket("/connect")
@@ -29,7 +31,7 @@ async def websocket_endpoint(websocket: WebSocket, params: dict = Depends(get_we
     logger.info(f"[Websocket: connect] Starting connection with params: {params}")
 
     try:
-        if not params["user_id"] or not params["session_id"] or not params["resume_id"]:
+        if not params["user_id"] or not params["session_id"] or not params["resume_id"] or not params["position"] or not params["bias_prompt"]:
             logger.error(f"[Websocket: connect] Missing required parameters")
             raise HTTPException(status_code=400, detail="Missing required parameters")
         

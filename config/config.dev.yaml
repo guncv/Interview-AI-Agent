@@ -16,6 +16,12 @@ interview:
   temperature: 0.5
   api_key: ${EXTRACT_RESUME_OPENAI_API_KEY}
 
+example_question:
+  model: gpt-3.5-turbo
+  api_provider: openai
+  temperature: 0.3
+  api_key: ${EXAMPLE_QUESTION_OPENAI_API_KEY}
+
 memory:
   provider: qdrant
   host: "localhost"
