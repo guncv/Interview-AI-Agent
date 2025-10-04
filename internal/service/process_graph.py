@@ -169,7 +169,7 @@ class InterviewProcessingGraph:
             "This is the start of wrap up interview - please say goodbye to the candidate.",
             InterviewProcessNode.WRAP_UP,
             InterviewProcessStep.WRAP_UP,
-            {},
+            {"END": InterviewProcessStep.COMPLETED},
             always_continue=True,
         )
 

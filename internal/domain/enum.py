@@ -11,6 +11,7 @@ class WebSocketMessageType(str, Enum):
     INTERVIEWER_RESPONSE = "interviewer_response"
     INTERVIEWR_TURN_START = "interviewer_turn_start"
     INTERVIEWR_TURN_END = "interviewer_turn_end"
+    INTERVIEW_COMPLETED = "interview_completed"
     ERROR = "error"
     ECHO = "echo"
     PING = "ping"

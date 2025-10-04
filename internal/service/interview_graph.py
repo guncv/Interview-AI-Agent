@@ -219,14 +219,10 @@ class InterviewGraph:
     async def invoke(self, session_id: str, user_input: str, position: str) -> InterviewState:
         logger.info(f"[INVOKE]: Invoking graph for session {session_id} with user input {user_input} and position {position}")
         locked = acquire_lock(session_id)
-        logger.info(f"[INVOKE]: Acquired lock: {locked}")
         try:
-            logger.info(f"[INVOKE]: Loading previous state for session {session_id}")
             prev_state = load_state(session_id)
-            logger.info(f"[INVOKE]: Loaded previous state: {prev_state}")
             
             if prev_state:
-                logger.info(f"[INVOKE]: Loading previous state: current_step={prev_state.current_step}, go_to_next_step={prev_state.go_to_next_step}")
                 initial_state = prev_state.model_copy(
                     update={
                         "user_input": user_input,
@@ -235,7 +231,6 @@ class InterviewGraph:
                     }
                 )
             else:
-                logger.info("[INVOKE]: No previous state found, starting with GREETING")
                 initial_state = InterviewState(
                     session_id=session_id,
                     user_input=user_input,
@@ -251,7 +246,6 @@ class InterviewGraph:
                     current_step=InterviewProcessStep.GREETING,
                 )
 
-            logger.info(f"[INVOKE]: Invoking graph with initial state: current_step={initial_state.current_step}, go_to_next_step={initial_state.go_to_next_step}")
             result = await self.graph.ainvoke(
                 initial_state,
                 config={"configurable": {
@@ -259,10 +253,8 @@ class InterviewGraph:
                     "thread_id": session_id,
                 }}
             )
-            logger.info(f"[INVOKE]: Graph execution completed")
 
             normalized = InterviewState(**result) if isinstance(result, dict) else result
-            logger.info(f"[INVOKE]: Result normalized: current_step={normalized.current_step}, go_to_next_step={normalized.go_to_next_step}, message_length={len(normalized.message) if normalized.message else 0}")
 
             if normalized.current_step == InterviewProcessStep.ERROR_HANDLER:
                 clear_state(session_id)
@@ -291,5 +283,4 @@ class InterviewGraph:
             return err
         finally:
             if locked:
-                logger.info(f"[INVOKE]: Releasing lock for session {session_id}")
                 release_lock(session_id)
