@@ -95,6 +95,7 @@ class InterviewProcessStep(Enum):
     TECHNICAL_QUESTION = 5
     BEHAVIORAL_QUESTION = 6
     WRAP_UP = 7
+    COMPLETED = 8
     ERROR_HANDLER = -1
     
 class InterviewProcessNode(Enum):
@@ -106,6 +107,7 @@ class InterviewProcessNode(Enum):
     TECHNICAL_QUESTION = "Technical Question"
     BEHAVIORAL_QUESTION = "Behavioral Question"
     WRAP_UP = "Wrap Up"
+    COMPLETED = "Completed"
     ERROR_HANDLER = "Unknown"
 
 class InterviewState(BaseModel):

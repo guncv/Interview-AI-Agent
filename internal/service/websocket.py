@@ -4,6 +4,8 @@ from internal.adapters.db.redis import redis_client
 from internal.adapters.stt.whisper_stt import WhisperSpeechToText
 from internal.domain.enum import WebSocketMessageType, WebSocketMessageAuthor
 from internal.adapters.tts.openai import OpenAITTS
+from internal.domain.models.interview import InterviewProcessStep
+from internal.adapters.llm.state_store import clearMemory, clear_state
 from starlette.websockets import WebSocketDisconnect
 import json
 import asyncio
@@ -107,15 +109,41 @@ class WebSocketService:
         while True:
             if message_data.message:
                 await self.send_response_and_audio(client, message_data)
+                
+            if message_data.current_step == InterviewProcessStep.COMPLETED:
+                logger.info(f"[WebSocketService: get_interviewer_response] Interview completed, clearing memory and state")
+                
+                try:
+                    clearMemory(client.session_id)
+                    logger.info(f"[WebSocketService: get_interviewer_response] Chat memory cleared for session {client.session_id}")
+                except Exception as e:
+                    logger.error(f"[WebSocketService: get_interviewer_response] Failed to clear memory: {e}")
+                
+                try:
+                    clear_state(client.session_id)
+                    logger.info(f"[WebSocketService: get_interviewer_response] Graph state cleared for session {client.session_id}")
+                except Exception as e:
+                    logger.error(f"[WebSocketService: get_interviewer_response] Failed to clear state: {e}")
+
+                break
 
             if not message_data.go_to_next_step:
                 break
 
             message_data = await self.interview_graph.invoke(client.session_id, message_data.message, client.position)
         
-        logger.info(f"[WebSocketService: get_interviewer_response] Sending ending interviewer turn")
-        await asyncio.sleep(1)
-        await client.websocket.send_text(json.dumps({
-            "type": WebSocketMessageType.INTERVIEWR_TURN_END,
-            "session_id": client.session_id
-        }))
+        if message_data.current_step != InterviewProcessStep.COMPLETED:
+            logger.info(f"[WebSocketService: get_interviewer_response] Sending ending interviewer turn")
+            await asyncio.sleep(1)
+            await client.websocket.send_text(json.dumps({
+                    "type": WebSocketMessageType.INTERVIEWR_TURN_END,
+                    "session_id": client.session_id
+                }))
+            
+        if message_data.current_step == InterviewProcessStep.COMPLETED:
+            logger.info(f"[WebSocketService: get_interviewer_response] Sending interview completion message")
+            await asyncio.sleep(0.5)
+            await client.websocket.send_text(json.dumps({
+                "type": WebSocketMessageType.INTERVIEW_COMPLETED,
+                "session_id": client.session_id,
+            }))
