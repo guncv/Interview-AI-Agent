@@ -128,7 +128,7 @@ class InterviewGraph:
         logger.info(f"[GET EXAMPLE QUESTIONS]: Getting example questions for session {state.session_id} with current step {state.current_step}")
         try:
             if state.go_to_next_step:
-                if state.current_step in [InterviewProcessStep.GREETING, InterviewProcessStep.INTRO]:
+                if state.current_step in [InterviewProcessStep.GREETING, InterviewProcessStep.INTRO, InterviewProcessStep.WRAP_UP]:
                     logger.info(f"[GET EXAMPLE QUESTIONS] Skipping for {state.current_step.value} - examples are embedded in prompt")
                     return state.model_copy(update={
                         "example_questions": [],

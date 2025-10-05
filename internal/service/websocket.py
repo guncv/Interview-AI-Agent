@@ -49,10 +49,11 @@ class WebSocketService:
             logger.error(f"[WebSocketService: handle audio chunk] Error: {e}")
             raise e
         
-    async def handle_interviewer_audio_chunking(self, client: WebSocketClient, message: str):
+    async def handle_interviewer_audio_chunking(self, client: WebSocketClient, message: str) -> int:
         logger.info("[WebSocketService: handle_interviewer_audio_chunking] Called")
 
         try:
+            chunking_count = 0
             async for chunk in self.tts_client.synthesize_stream(message):
                 logger.info("[WebSocketService: handle_interviewer_audio_chunking] Sending audio chunk")
 
@@ -62,6 +63,9 @@ class WebSocketService:
                     audio=chunk
                 )
                 await self.websocket_server_callback.handle_interviewer_audio_chunking(client, tts_chunk)
+                chunking_count += 1
+
+            return chunking_count
 
         except WebSocketDisconnect:
             logger.warning(f"[WebSocketService: handle_interviewer_audio_chunking] WebSocket disconnected, stopping audio streaming")
@@ -80,7 +84,7 @@ class WebSocketService:
                 logger.warning(f"[WebSocketService: send_response_and_audio] WebSocket is not connected, skipping response")
                 return
 
-            await self.handle_interviewer_audio_chunking(client, message_data.message)
+            chunking_count = await self.handle_interviewer_audio_chunking(client, message_data.message)
 
             await client.websocket.send_text(json.dumps({
                 "type": WebSocketMessageType.INTERVIEWER_RESPONSE,
@@ -89,7 +93,8 @@ class WebSocketService:
                 "message": message_data.message,
                 "started_at": message_data.start_at,
                 "ended_at": message_data.end_at,
-                "current_state": message_data.current_storing_node.value
+                "current_state": message_data.current_storing_node.value,
+                "chunking_count": chunking_count
             }))
             
         except WebSocketDisconnect:
