@@ -198,7 +198,6 @@ class InterviewProcessingGraph:
         step_map: dict[str, InterviewProcessStep],
         always_continue: bool = False,
     ) -> InterviewState:
-
         example_questions_formatted = self._format_example_questions(state.example_questions)
         
         context_prompt_input = {
