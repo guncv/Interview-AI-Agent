@@ -24,6 +24,7 @@ async def get_websocket_params(
         "session_id": payload["session_id"],
         "position": payload["position"],
         "bias_prompt": payload["bias_prompt"],
+        "selected_stages": payload["selected_stages"],
     }
 
 @router.websocket("/connect")

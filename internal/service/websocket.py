@@ -109,7 +109,7 @@ class WebSocketService:
     async def get_interviewer_response(self, client: WebSocketClient, final_transcript: str):
         logger.info("[WebSocketService: get_interviewer_response] Called")
         
-        message_data = await self.interview_graph.invoke(client.session_id, final_transcript, client.position)
+        message_data = await self.interview_graph.invoke(client.session_id, final_transcript, client.position, client.selected_stages)
 
         while True:
             if message_data.message:
@@ -135,7 +135,7 @@ class WebSocketService:
             if not message_data.go_to_next_step:
                 break
 
-            message_data = await self.interview_graph.invoke(client.session_id, message_data.message, client.position)
+            message_data = await self.interview_graph.invoke(client.session_id, message_data.message, client.position, client.selected_stages)
         
         if message_data.current_step != InterviewProcessStep.COMPLETED:
             logger.info(f"[WebSocketService: get_interviewer_response] Sending ending interviewer turn")

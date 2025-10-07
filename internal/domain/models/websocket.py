@@ -11,6 +11,7 @@ class WebSocketClient:
     resume_id: str
     position: str
     bias_prompt: str
+    selected_stages: list[str]
     is_connected: bool = True
     current_segment_id: Optional[str] = None
 

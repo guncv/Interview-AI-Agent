@@ -51,7 +51,6 @@ class PostgresClient(DatabasePort):
                 password=password,
                 cursor_factory=RealDictCursor
             )
-            logger.info(f"[PostgresClient] Connected to database: {name}@{address}:{port}")
         except Exception as e:
             logger.error(f"[PostgresClient] Failed to connect to database: {e}")
             raise
@@ -63,7 +62,6 @@ class PostgresClient(DatabasePort):
         if self._connection:
             self._connection.close()
             self._connection = None
-            logger.info("[PostgresClient] Disconnected from database")
     
     async def execute_query(self, query: str, params: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         try:
@@ -75,8 +73,6 @@ class PostgresClient(DatabasePort):
             return [dict(row) for row in results]
         except Exception as e:
             logger.error(f"[PostgresClient] Query execution failed: {e}")
-            logger.error(f"[PostgresClient] Query: {query}")
-            logger.error(f"[PostgresClient] Params: {params}")
             raise
     
     def execute_command(self, command: str, params: Optional[Dict[str, Any]] = None) -> None:
@@ -85,12 +81,9 @@ class PostgresClient(DatabasePort):
             cursor.execute(command, params or {})
             self.connection.commit()
             cursor.close()
-            logger.info(f"[PostgresClient] Command executed successfully")
         except Exception as e:
             self.connection.rollback()
             logger.error(f"[PostgresClient] Command execution failed: {e}")
-            logger.error(f"[PostgresClient] Command: {command}")
-            logger.error(f"[PostgresClient] Params: {params}")
             raise
     
     async def get_resume_context_by_session_id(self, session_id: str) -> Optional[Dict[str, Any]]:
@@ -113,7 +106,6 @@ class PostgresClient(DatabasePort):
             try:
                 resume_context = json.loads(resume_context)
             except json.JSONDecodeError:
-                logger.warning(f"[PostgresClient] Failed to parse resume_context JSON for session {session_id}")
                 return None
         
         return resume_context

@@ -20,7 +20,6 @@ class LLM:
         if type == "transcribe":
             if self.provider == "openai":
                 from langchain_openai import ChatOpenAI
-                logger.info(f"[loadLLM: Called]: {self.model}")
                 return ChatOpenAI(
                     openai_api_key=self.api_key,
                     model=self.model,

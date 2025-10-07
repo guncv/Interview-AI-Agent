@@ -5,7 +5,7 @@ from typing import Dict, Set
 from fastapi import WebSocket, WebSocketDisconnect
 from internal.adapters.log.logger import logger
 from internal.domain.enum import WebSocketMessageType, WebSocketErrorCode
-from internal.domain.models.websocket import ErrorMessage, AudioChunkMessage, WebSocketClient, SegmentStartMessage, SegmentEndMessage, StartSessionConversationMessage, TTSAudioChunking
+from internal.domain.models.websocket import ErrorMessage, AudioChunkMessage, WebSocketClient, SegmentStartMessage, SegmentEndMessage, StartSessionConversationMessage
 from internal.adapters.websocket.server_callback import WebSocketServerCallback
 
 class WebSocketServer:
@@ -20,6 +20,8 @@ class WebSocketServer:
         resume_id = params["resume_id"]
         position = params["position"]
         bias_prompt = params["bias_prompt"]
+        selected_stages = params["selected_stages"]
+        logger.info(f"[Websocket: connect] selected_stages: {selected_stages}")
         
         logger.info(f"[Websocket: connect] called")
         if session_id in self.active_connections:
@@ -33,6 +35,7 @@ class WebSocketServer:
             resume_id=resume_id,
             position=position,
             bias_prompt=bias_prompt,
+            selected_stages=selected_stages,
         )
         self.active_connections[session_id] = client
         self.user_sessions.setdefault(user_id, set()).add(session_id)

@@ -18,6 +18,52 @@ class InterviewProcessingGraph:
         self.state_checkpointer = MemorySaver()
         self.websocket_service = WebSocketService()
         
+        self.stage_to_step_map = {
+            "Experience": InterviewProcessStep.ASK_EXPERIENCE,
+            "Project": InterviewProcessStep.ASK_PROJECT,
+            "Technical": InterviewProcessStep.TECHNICAL_QUESTION,
+            "Behavioral": InterviewProcessStep.BEHAVIORAL_QUESTION,
+        }
+        
+        self.mandatory_stages = [
+            InterviewProcessStep.GREETING,
+            InterviewProcessStep.INTRO,
+            InterviewProcessStep.WRAP_UP,
+        ]
+        
+        self.stage_flow_order = [
+            InterviewProcessStep.INTRO,
+            InterviewProcessStep.ASK_EXPERIENCE,
+            InterviewProcessStep.ASK_PROJECT,
+            InterviewProcessStep.TECHNICAL_QUESTION,
+            InterviewProcessStep.BEHAVIORAL_QUESTION,
+        ]
+        
+    def _is_stage_enabled(self, stage: InterviewProcessStep, selected_stages: list[str]) -> bool:
+        if stage in self.mandatory_stages:
+            return True
+        
+        for stage_name, stage_step in self.stage_to_step_map.items():
+            if stage_step == stage and stage_name in selected_stages:
+                return True
+        
+        return False
+    
+    def _get_next_enabled_stage(self, current_stage: InterviewProcessStep, selected_stages: list[str]) -> InterviewProcessStep:
+        try:
+            current_index = self.stage_flow_order.index(current_stage)
+        except ValueError:
+            logger.warning(f"[GET NEXT ENABLED STAGE] Current stage {current_stage} not found in flow order, returning COMPLETED")
+            return InterviewProcessStep.ERROR_HANDLER
+        
+        for i in range(current_index + 1, len(self.stage_flow_order)):
+            next_stage = self.stage_flow_order[i]
+            if self._is_stage_enabled(next_stage, selected_stages):
+                logger.info(f"[GET NEXT ENABLED STAGE] Next enabled stage after {current_stage}: {next_stage}")
+                return next_stage
+        
+        return InterviewProcessStep.ERROR_HANDLER
+        
     def _build_graph(self):
         wf = StateGraph(InterviewState)
 
@@ -93,7 +139,7 @@ class InterviewProcessingGraph:
             "This is the start of the interview - please greet the candidate.",
             InterviewProcessNode.GREETING,
             InterviewProcessStep.GREETING,
-            {"INTRO": InterviewProcessStep.INTRO},
+            deterministic_next_step=InterviewProcessStep.INTRO,
         )
 
     def _intro_node(self, state: InterviewState) -> InterviewState:
@@ -105,10 +151,6 @@ class InterviewProcessingGraph:
             "This is the start of intro question - please ask the candidate to introduce themselves.",
             InterviewProcessNode.INTRO,
             InterviewProcessStep.INTRO,
-            {
-                "ASK_PROJECT": InterviewProcessStep.ASK_PROJECT,
-                "ASK_EXPERIENCE": InterviewProcessStep.ASK_EXPERIENCE,
-            },
         )
 
 
@@ -121,7 +163,6 @@ class InterviewProcessingGraph:
             "This is the start of experience question - please ask the candidate to tell you about their work experience.",
             InterviewProcessNode.ASK_EXPERIENCE,
             InterviewProcessStep.ASK_EXPERIENCE,
-            {"ASK_PROJECT": InterviewProcessStep.ASK_PROJECT},
         )
 
     def _projects_node(self, state: InterviewState) -> InterviewState:
@@ -133,7 +174,6 @@ class InterviewProcessingGraph:
             "This is the start of projects question - please ask the candidate to tell you about their projects.",
             InterviewProcessNode.ASK_PROJECT,
             InterviewProcessStep.ASK_PROJECT,
-            {"TECHNICAL_QUESTION": InterviewProcessStep.TECHNICAL_QUESTION},
         )
 
     def _technical_node(self, state: InterviewState) -> InterviewState:
@@ -145,7 +185,6 @@ class InterviewProcessingGraph:
             "This is the start of technical question - please ask the candidate to tell you about their technical skills.",
             InterviewProcessNode.TECHNICAL_QUESTION,
             InterviewProcessStep.TECHNICAL_QUESTION,
-            {"BEHAVIORAL_QUESTION": InterviewProcessStep.BEHAVIORAL_QUESTION},
         )
 
     def _behavior_node(self, state: InterviewState) -> InterviewState:
@@ -157,7 +196,6 @@ class InterviewProcessingGraph:
             "This is the start of behavioral question - please ask the candidate to tell you about a time they had to deal with a difficult situation.",
             InterviewProcessNode.BEHAVIORAL_QUESTION,
             InterviewProcessStep.BEHAVIORAL_QUESTION,
-            {"WRAP_UP": InterviewProcessStep.WRAP_UP},
         )
 
     def _wrap_up_node(self, state: InterviewState) -> InterviewState:
@@ -169,8 +207,7 @@ class InterviewProcessingGraph:
             "This is the start of wrap up interview - please say goodbye to the candidate.",
             InterviewProcessNode.WRAP_UP,
             InterviewProcessStep.WRAP_UP,
-            {"END": InterviewProcessStep.COMPLETED},
-            always_continue=True,
+            deterministic_next_step=InterviewProcessStep.COMPLETED,
         )
 
     def _error_handler_node(self, state: InterviewState) -> InterviewState:
@@ -178,7 +215,7 @@ class InterviewProcessingGraph:
         
         logger.error(f"[ERROR HANDLER] Processing error: {state.error_message}")
         start_date = datetime.now(timezone.utc).isoformat()
-        out = ProcessPromptResponse(message=state.error_message, next_step="ERROR_HANDLER", go_to_next_step=False)
+        out = ProcessPromptResponse(message=state.error_message, go_to_next_step=False)
         return self._update_state_with_message(
             state,
             start_date,
@@ -195,8 +232,7 @@ class InterviewProcessingGraph:
         fallback_input: str,
         current_state: InterviewProcessNode,
         current_step: InterviewProcessStep,
-        step_map: dict[str, InterviewProcessStep],
-        always_continue: bool = False,
+        deterministic_next_step: InterviewProcessStep | None = None,
     ) -> InterviewState:
         example_questions_formatted = self._format_example_questions(state.example_questions)
         
@@ -208,13 +244,16 @@ class InterviewProcessingGraph:
         
         start_date = datetime.now(timezone.utc).isoformat()
         out = self._invoke_node(prompt, state.session_id, context_prompt_input)
+        
+        if out.go_to_next_step:
+            if deterministic_next_step is not None:
+                next_step = deterministic_next_step
+            else:
+                next_step = self._get_next_enabled_stage(current_step, state.selected_stages)
+        else:
+            next_step = current_step
 
-        next_step = step_map.get(out.next_step, current_step)
-        go_to_next_step = always_continue or (next_step != current_step)
-
-        logger.info(f"[RUN STEP]: Running step {current_step} for session {state.session_id} with next step {next_step} and go_to_next_step {go_to_next_step}")
-
-        return self._update_state_with_message(state, start_date, out, current_state, next_step, go_to_next_step)
+        return self._update_state_with_message(state, start_date, out, current_state, next_step, out.go_to_next_step)
     
     def _format_example_questions(self, example_questions: list[str]) -> str:
         if not example_questions:
@@ -323,6 +362,7 @@ class InterviewProcessingGraph:
                 current_storing_node=InterviewProcessNode.GREETING,
                 start_at=datetime.now(timezone.utc).isoformat(),
                 end_at=datetime.now(timezone.utc).isoformat(),
+                selected_stages=state.selected_stages,
                 go_to_next_step=False,
                 error_message=str(e),
             )

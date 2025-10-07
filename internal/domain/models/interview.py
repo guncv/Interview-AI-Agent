@@ -125,10 +125,10 @@ class InterviewState(BaseModel):
     go_to_next_step: bool = False
     error_message: Optional[str] = None
     current_step: InterviewProcessStep
+    selected_stages: List[str] = []
     
 class ProcessPromptResponse(BaseModel):
     message: str
-    next_step: str
     go_to_next_step: bool
     
 class PreProcessedCriteria(BaseModel):

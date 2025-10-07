@@ -22,7 +22,6 @@ class GCP_SpeechToText(STTPort):
         language_code: str,
         bias_prompt: Optional[List[str]] = None,
     ) -> Tuple[SpeechRecognize, SpeechRecognize]:
-        logger.info("[GCP_SpeechToTextV2] Streaming with context (prev + curr chunk)")
 
         adaptation = None
         if bias_prompt:
@@ -63,7 +62,6 @@ class GCP_SpeechToText(STTPort):
         def requests() -> Generator[cloud_speech.StreamingRecognizeRequest, None, None]:
             yield config_request
             for chunk in self.slice_audio_chunks(prev_chunk + curr_chunk):
-                logger.info(f"[GCP_SpeechToTextV2] Yielding audio slice (≤25600 bytes)")
                 yield cloud_speech.StreamingRecognizeRequest(audio=chunk)
 
         words = []
@@ -71,10 +69,8 @@ class GCP_SpeechToText(STTPort):
 
         try:
             responses_iterator = self.client_v2.streaming_recognize(requests=requests())
-            logger.info(f"[GCP_SpeechToTextV2] Responses iterator: {responses_iterator}")
             for response in responses_iterator:
                 for result in response.results:
-                    logger.info(f"[GCP_SpeechToTextV2] {len(result.alternatives)} alternatives")
 
                     best = result.alternatives[0]
                     transcript += best.transcript + " "
@@ -92,7 +88,6 @@ class GCP_SpeechToText(STTPort):
         except Exception as e:
             logger.error(f"[GCP_SpeechToTextV2] Error: {e}")
 
-        logger.info(f"[GCP_SpeechToTextV2] Full Transcript: {transcript.strip()}")
 
         prev_duration = len(prev_chunk) / (16000 * 2)
         tolerance = 0.05
@@ -137,7 +132,6 @@ class GCP_SpeechToText(STTPort):
         language_code: str,
         bias_prompt: Optional[List[str]] = None,
     ) -> SpeechRecognize:
-        logger.info("[GCP_SpeechToTextV2] Single chunk transcription")
 
         adaptation = None
         if bias_prompt:
@@ -178,7 +172,6 @@ class GCP_SpeechToText(STTPort):
         def requests() -> Generator[cloud_speech.StreamingRecognizeRequest, None, None]:
             yield config_request
             for chunk in self.slice_audio_chunks(audio_chunk):
-                logger.info(f"[GCP_SpeechToTextV2] Yielding audio slice (≤25600 bytes)")
                 yield cloud_speech.StreamingRecognizeRequest(audio=chunk)
 
         words = []
@@ -186,10 +179,8 @@ class GCP_SpeechToText(STTPort):
 
         try:
             responses_iterator = self.client_v2.streaming_recognize(requests=requests())
-            logger.info(f"[GCP_SpeechToTextV2] Responses iterator: {responses_iterator}")
             for response in responses_iterator:
                 for result in response.results:
-                    logger.info(f"[GCP_SpeechToTextV2] {len(result.alternatives)} alternatives")
 
                     best = result.alternatives[0]
                     transcript += best.transcript + " "
@@ -206,7 +197,5 @@ class GCP_SpeechToText(STTPort):
 
         except Exception as e:
             logger.error(f"[GCP_SpeechToTextV2] Error: {e}")
-
-        logger.info(f"[GCP_SpeechToTextV2] Single Chunk Transcript: {transcript.strip()}")
 
         return SpeechRecognize(transcript=transcript.strip(), words=words)

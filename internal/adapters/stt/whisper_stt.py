@@ -19,8 +19,6 @@ class WhisperSpeechToText(STTPort):
         self.model = "whisper-1"
 
     async def transcribe(self, audio_chunk: bytes, session_id: str, bias_prompt: str) -> SpeechRecognize:
-        logger.info(f"[Whisper STT] Transcribing audio | Session: {session_id}, Bias Prompt: {bias_prompt[:100]}...")
-
         try:
             with tempfile.TemporaryDirectory() as tmpdir:
                 input_path = os.path.join(tmpdir, "input.webm")
@@ -49,9 +47,6 @@ class WhisperSpeechToText(STTPort):
             if bias_prompt:
                 if len(bias_prompt) > 896:
                     bias_prompt = bias_prompt[:896]
-                logger.info(f"[Whisper STT] Using bias prompt: {bias_prompt[:100]}...")
-            else:
-                logger.info(f"[Whisper STT] No bias prompt found for session {session_id}")
             
             response = self.client.audio.transcriptions.create(
                 file=wav_buffer,

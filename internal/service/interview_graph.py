@@ -216,8 +216,11 @@ class InterviewGraph:
                 "error_message": str(e),
             })
 
-    async def invoke(self, session_id: str, user_input: str, position: str) -> InterviewState:
+    async def invoke(self, session_id: str, user_input: str, position: str, selected_stages: list[str] = None) -> InterviewState:
         logger.info(f"[INVOKE]: Invoking graph for session {session_id} with user input {user_input} and position {position}")
+        if selected_stages is None:
+            selected_stages = []
+            
         locked = acquire_lock(session_id)
         try:
             prev_state = load_state(session_id)
@@ -244,6 +247,7 @@ class InterviewGraph:
                     go_to_next_step=True,
                     error_message="",
                     current_step=InterviewProcessStep.GREETING,
+                    selected_stages=selected_stages,
                 )
 
             result = await self.graph.ainvoke(
@@ -278,6 +282,7 @@ class InterviewGraph:
                 go_to_next_step=False,
                 error_message=str(e),
                 current_step=InterviewProcessStep.ERROR_HANDLER,
+                selected_stages=selected_stages if selected_stages else [],
             )
             save_state(session_id, err)
             return err
