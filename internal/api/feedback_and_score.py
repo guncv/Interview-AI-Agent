@@ -12,7 +12,6 @@ feedback_and_score_service = FeedbackAndScoreService()
 
 @router.post("")
 async def feedback_and_score_api(request: FeedbackAndScoreRequest):
-    logger.info(f"[Feedback and Score API Called: ]")
     try:
         resp = await feedback_and_score_service.feedback_and_score(request)
         return resp
@@ -24,7 +23,6 @@ async def feedback_and_score_api(request: FeedbackAndScoreRequest):
 
 @router.post("/overall-summary")
 async def get_overall_summary_api(request: GetOverallSummaryRequest):
-    logger.info(f"[Get Overall Summary API Called: ]")
     try:
         resp = await feedback_and_score_service.get_overall_summary(request)
         return resp
@@ -36,7 +34,6 @@ async def get_overall_summary_api(request: GetOverallSummaryRequest):
         
 @router.post("/criteria-comment")
 async def get_criteria_comments_api(request: PreProcessedCriteriaResp):
-    logger.info(f"[Get Criteria Comments API Called: ]")
     try:
         resp = await feedback_and_score_service.get_criteria_comments(request)
         return resp

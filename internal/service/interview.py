@@ -28,7 +28,6 @@ class InterviewService:
         self.resume_extraction_chain: Runnable = self.resume_extraction_prompt | self.llm | self.parser
 
     async def health_check(self):
-        logger.info("[Health Check Service Called: ]")
         try:
             resp = HealthCheckResponse(message="OK")
             return resp
@@ -41,7 +40,6 @@ class InterviewService:
             e.raise_HTTPException()
 
     async def interview(self, request: InterviewRequest):
-        logger.info(f"[Interview Service Called:]")
         try:
             resp = self.interview_graph.invoke(request.session_id, request.user_input)
             redis_client.save_interview_state(request.session_id, resp)
@@ -57,7 +55,6 @@ class InterviewService:
             e.raise_HTTPException()
     
     async def requirements(self, request: RequirementsRequest) -> RequirementsResponse:
-        logger.info(f"[Requirements Service Called:]")
         
         try:
             with tempfile.NamedTemporaryFile(delete=True, suffix=".pdf") as tmp_file:
@@ -72,8 +69,6 @@ class InterviewService:
             if not resume_text.strip():
                 logger.warning(f"[Requirements Service]: No resume text found for session {request.session_id}")
                 return RequirementsResponse(bias_prompt="", resume_context="")
-            
-            logger.info(f"[Requirements Service]: Extracted {len(resume_text)} characters from PDF")
             
             bias_response, resume_json_response = await asyncio.gather(
                 self.bias_prompt_chain.ainvoke({"resume_text": resume_text}),
@@ -101,7 +96,6 @@ class InterviewService:
                     raise
             
             redis_client.save_resume_context(request.session_id, resume_json)
-            logger.info(f"[Requirements Service]: Successfully extracted and stored structured resume data in Redis ", resume_json)
             
             resp = RequirementsResponse(
                 bias_prompt=bias_terms,

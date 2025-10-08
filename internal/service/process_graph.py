@@ -59,7 +59,6 @@ class InterviewProcessingGraph:
         for i in range(current_index + 1, len(self.stage_flow_order)):
             next_stage = self.stage_flow_order[i]
             if self._is_stage_enabled(next_stage, selected_stages):
-                logger.info(f"[GET NEXT ENABLED STAGE] Next enabled stage after {current_stage}: {next_stage}")
                 return next_stage
         
         return InterviewProcessStep.ERROR_HANDLER
@@ -131,8 +130,6 @@ class InterviewProcessingGraph:
         return "pause"
 
     def _greeting_node(self, state: InterviewState) -> InterviewState:
-        logger.info(f"[GREETING]: Running greeting node for session {state.session_id}")
-        
         return self._run_step(
             state,
             GREETING_PROMPT,
@@ -143,8 +140,6 @@ class InterviewProcessingGraph:
         )
 
     def _intro_node(self, state: InterviewState) -> InterviewState:
-        logger.info(f"[INTRO]: Running intro node for session {state.session_id}")
-        
         return self._run_step(
             state,
             INTRO_PROMPT,
@@ -155,8 +150,6 @@ class InterviewProcessingGraph:
 
 
     def _experience_node(self, state: InterviewState) -> InterviewState:
-        logger.info(f"[ASK EXPERIENCE]: Running experience node for session {state.session_id}")
-        
         return self._run_step(
             state,
             ASK_EXPERIENCE_PROMPT,
@@ -166,8 +159,6 @@ class InterviewProcessingGraph:
         )
 
     def _projects_node(self, state: InterviewState) -> InterviewState:
-        logger.info(f"[ASK PROJECT]: Running projects node for session {state.session_id}")
-        
         return self._run_step(
             state,
             ASK_PROJECT_PROMPT,
@@ -177,8 +168,6 @@ class InterviewProcessingGraph:
         )
 
     def _technical_node(self, state: InterviewState) -> InterviewState:
-        logger.info(f"[TECHNICAL QUESTION]: Running technical node for session {state.session_id}")
-        
         return self._run_step(
             state,
             ASK_TECHNICAL_PROMPT,
@@ -188,8 +177,6 @@ class InterviewProcessingGraph:
         )
 
     def _behavior_node(self, state: InterviewState) -> InterviewState:
-        logger.info(f"[BEHAVIORAL QUESTION]: Running behavior node for session {state.session_id}")
-        
         return self._run_step(
             state,
             ASK_BEHAVIORAL_PROMPT,
@@ -199,8 +186,6 @@ class InterviewProcessingGraph:
         )
 
     def _wrap_up_node(self, state: InterviewState) -> InterviewState:
-        logger.info(f"[WRAP UP]: Running wrap up node for session {state.session_id}")
-        
         return self._run_step(
             state,
             WRAP_UP_PROMPT,
@@ -211,8 +196,6 @@ class InterviewProcessingGraph:
         )
 
     def _error_handler_node(self, state: InterviewState) -> InterviewState:
-        logger.info(f"[ERROR HANDLER]: Running error handler node for session {state.session_id}")
-        
         logger.error(f"[ERROR HANDLER] Processing error: {state.error_message}")
         start_date = datetime.now(timezone.utc).isoformat()
         out = ProcessPromptResponse(message=state.error_message, go_to_next_step=False)
@@ -337,7 +320,6 @@ class InterviewProcessingGraph:
         )
 
         msgs_after = getattr(getChatHistory(session_id), "messages", [])
-        logger.info("[CHAT_HISTORY:after] sid=%s count=%d messages=%s", session_id, len(msgs_after), msgs_after)
 
         return ProcessPromptResponse(**data["raw"])
 

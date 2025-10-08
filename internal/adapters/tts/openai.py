@@ -12,7 +12,6 @@ class OpenAITTS(TTSPort):
         self.url = "https://api.openai.com/v1/audio/speech"
 
     async def synthesize_stream(self, text: str) -> AsyncGenerator[bytes, None]:
-        logger.info(f"[OpenAI TTS REST] Synthesizing stream for text: {text[:50]}...")
 
         headers = {
             "Authorization": f"Bearer {self.api_key}",
@@ -34,7 +33,6 @@ class OpenAITTS(TTSPort):
                         logger.error(f"[OpenAI TTS REST] Error {resp.status}: {error_msg}")
                         raise RuntimeError(f"TTS request failed: {error_msg}")
 
-                    logger.info(f"[OpenAI TTS REST] Streaming audio for text: {text[:50]}...")
                     async for chunk in resp.content.iter_chunked(8192):
                         yield chunk
         except Exception as e:

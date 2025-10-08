@@ -16,7 +16,6 @@ class OpenAIEmbedder:
         
         self.client = OpenAI(api_key=config["vector_db"]["embedder_api_key"])
         self.model = model
-        logger.info(f"Initialized OpenAI embedder with model: {model}")
     
     def __call__(self, texts: Sequence[str]) -> Sequence[Sequence[float]]:
         try:

@@ -12,15 +12,11 @@ class InterviewSessionService:
         self.cache_client = redis_client
     
     async def get_resume_context(self, session_id: str) -> Optional[dict]:
-        logger.info(f"[InterviewSessionService] Getting resume_context for session_id: {session_id}")
-        
         try:
             resume_context = await self.cache_client.load_resume_context(session_id)
             if resume_context:
-                logger.info(f"[InterviewSessionService] Resume context found in cache for session_id: {session_id}")
                 return resume_context
             
-            logger.info(f"[InterviewSessionService] Resume context not in cache, fetching from database for session_id: {session_id}")
         except Exception as cache_error:
             logger.warning(f"[InterviewSessionService] Cache error, falling back to database: {cache_error}")
         
@@ -33,11 +29,9 @@ class InterviewSessionService:
             
             try:
                 await self.cache_client.save_resume_context(session_id, resume_context)
-                logger.info(f"[InterviewSessionService] Resume context cached for session_id: {session_id}")
             except Exception as cache_save_error:
                 logger.warning(f"[InterviewSessionService] Failed to cache resume_context: {cache_save_error}")
             
-            logger.info(f"[InterviewSessionService] Successfully retrieved resume_context from database for session_id: {session_id}")
             return resume_context
         
         except (InterviewSimulationException, Exception) as e:

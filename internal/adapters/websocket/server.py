@@ -21,9 +21,7 @@ class WebSocketServer:
         position = params["position"]
         bias_prompt = params["bias_prompt"]
         selected_stages = params["selected_stages"]
-        logger.info(f"[Websocket: connect] selected_stages: {selected_stages}")
         
-        logger.info(f"[Websocket: connect] called")
         if session_id in self.active_connections:
             await self.disconnect(self.active_connections[session_id])
         await websocket.accept()
@@ -40,19 +38,16 @@ class WebSocketServer:
         self.active_connections[session_id] = client
         self.user_sessions.setdefault(user_id, set()).add(session_id)
         
-        logger.info(f"[Websocket: connect successful] called")
         await self._send_json(client, {"type": WebSocketMessageType.CONNECTION_ESTABLISHED, "session_id": session_id})
         return client
 
     async def serve(self, client: WebSocketClient):
-        logger.info(f"[Websocket: serve] called")
         read_task = asyncio.create_task(self._read_loop(client))
         
         try:
             await asyncio.wait({read_task}, return_when=asyncio.FIRST_COMPLETED)
             
         except asyncio.CancelledError:
-            logger.info(f"[Websocket: serve] called: cancelled")
             await self.disconnect(client)
             
         except Exception as e:
@@ -66,7 +61,6 @@ class WebSocketServer:
             await self.disconnect(client)
 
     async def _read_loop(self, client: WebSocketClient):
-        logger.info(f"[Websocket: read_loop] called")
         try:
             while client.is_connected:
                 message = await client.websocket.receive()
@@ -77,7 +71,7 @@ class WebSocketServer:
                 await self._handle_message(client, message)
                     
         except WebSocketDisconnect:
-            logger.info(f"WS disconnect from called")
+            pass
             
         except Exception as e:
             logger.error(f"Read error from called: {e}")
@@ -103,10 +97,7 @@ class WebSocketServer:
         except Exception as e:
             logger.error(f"Error closing WS for {client.user_id}: {e}")
 
-        logger.info(f"Disconnected {client.user_id} from {client.session_id}")
-
     async def _handle_message(self, client: WebSocketClient, message: dict):
-        logger.info(f"[Websocket: handle message] Called")
         try:
             content = message.get("bytes") or message.get("text", "")
             if isinstance(content, bytes):
@@ -144,7 +135,6 @@ class WebSocketServer:
         )
 
     def _create_segment_end_message(self, data: dict) -> SegmentEndMessage:
-        logger.info(f"[Websocket: create segment end message]: Data: {data}")
         return SegmentEndMessage(
             type=data["type"],
             session_id=data["session_id"],
@@ -152,9 +142,7 @@ class WebSocketServer:
         )
 
     async def _handle_text_message(self, client: WebSocketClient, content: str):
-        logger.info(f"[Websocket: handle text message]: Called")
         try:
-            logger.info(f"[Websocket: handle text message inside loop]: {content}")
             data = json.loads(content)
             type = data.get("type")
 
@@ -191,8 +179,6 @@ class WebSocketServer:
             await self._send_error(client, WebSocketErrorCode.INVALID_MESSAGE, str(e))
 
     async def _handle_audio_message(self, client: WebSocketClient, content: bytes):
-        logger.info(f"[Websocket: handle audio message]: Called")
-        
         try:
             if len(content) < 4:
                 await self._send_error(client, WebSocketErrorCode.INVALID_MESSAGE, "Audio message too short")

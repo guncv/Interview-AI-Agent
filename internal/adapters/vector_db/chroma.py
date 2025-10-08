@@ -94,7 +94,6 @@ class ChromaVectorStore(VectorStore):
     def query_by_text(
         self, *, text: str, k: int = 5, include_documents: bool = True, session_id: str = None
     ) -> QueryResult:
-        logger.info(f"[ChromaVectorStore.query_by_text]: text={text[:100]}... session_id={session_id}")
         if self._embedder is None:
             raise ValueError("No embedder configured on ChromVectorStore.")
         
@@ -108,5 +107,4 @@ class ChromaVectorStore(VectorStore):
             return QueryResult(items=[])
             
         vec = embeddings[0]
-        logger.info(f"Querying vector store by text: {text[:100]}... with session_id filter: {session_id}")
         return self.query_by_vector(vector=vec, k=k, include_documents=include_documents, session_id=session_id)

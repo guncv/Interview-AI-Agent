@@ -24,8 +24,6 @@ class FeedbackAndScoreService:
         self.criteria_summary_chain: Runnable = self.criteria_summary_prompt | self.llm | self.parser
 
     async def feedback_and_score(self, request: FeedbackAndScoreRequest) -> FeedbackAndScoreResponse:
-        logger.info(f"[Feedback and Score Service Called:]")
-
         try:
             formatted_criteria = "\n\n".join([
                 f"**Criteria ID:** {c.criterion_id}\n"
@@ -86,8 +84,6 @@ class FeedbackAndScoreService:
             )
 
     async def get_overall_summary(self, request: GetOverallSummaryRequest) -> GetOverallSummaryResponse:
-        logger.info(f"[Get Overall Summary Service Called:]")
-
         try:
             summary_list = "\n\n".join([f"**Summary {i+1}:**\n{summary}" for i, summary in enumerate(request.summary_md)])
             prompt_request = {
@@ -105,8 +101,6 @@ class FeedbackAndScoreService:
             )
             
     async def get_criteria_comments(self, request: PreProcessedCriteriaResp) -> PostProcessedCriteriaResp:
-        logger.info(f"[Get Criteria Comments Service Called:]")
-
         try:
             criteria_data = []
             for criteria in request.criteria:
@@ -131,7 +125,6 @@ class FeedbackAndScoreService:
             }
             
             result = await self.criteria_summary_chain.ainvoke(prompt_request)
-            logger.info(f"[Get Criteria Comments Service Result]: {result}")
             
             original_criteria_map = {
                 criteria.criteria_id: criteria for criteria in request.criteria

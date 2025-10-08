@@ -9,14 +9,11 @@ jwt_token = JWTToken()
 async def get_websocket_params(
     token: str = Query(..., description="Token for encrypt session and user"),
 ) -> dict:
-    logger.info(f"[Websocket: get_websocket_params] Token: {token}")
     if not token:
         logger.error(f"[Websocket: get_websocket_params] Missing required parameters")
         raise HTTPException(status_code=400, detail="Missing required parameters")
 
-    logger.info(f"[Websocket: get_websocket_params] Verifying token")
     payload = jwt_token.verify_token(token)
-    logger.info(f"[Websocket: get_websocket_params] Payload: {payload}")
 
     return {
         "user_id": payload["user_id"],
@@ -29,7 +26,6 @@ async def get_websocket_params(
 
 @router.websocket("/connect")
 async def websocket_endpoint(websocket: WebSocket, params: dict = Depends(get_websocket_params)):
-    logger.info(f"[Websocket: connect] Starting connection with params: {params}")
 
     try:
         if not params["user_id"] or not params["session_id"] or not params["resume_id"] or not params["position"] or not params["bias_prompt"]:

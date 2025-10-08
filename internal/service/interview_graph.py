@@ -13,18 +13,15 @@ from internal.service.interview_session import InterviewSessionService
 
 class InterviewGraph:
     def __init__(self):
-        logger.info("[InterviewGraph] Initializing...")
         self.graph = self._build_graph()
         self.process_graph = InterviewProcessingGraph()
         self.interview_session_service = InterviewSessionService()
         self.llm = loadLLM("example_question")
-        logger.info("[InterviewGraph] Initialization complete")
 
     def _ok_or_error(self, state: InterviewState) -> str:
         return "error" if state.error_message else "ok"
 
     def _build_graph(self):
-        logger.info("[InterviewGraph] Building graph...")
         wf = StateGraph(InterviewState)
 
         wf.add_node(InterviewNode.QUERY_VECTOR_DB.value, self._query_vector_db_node)
@@ -33,7 +30,6 @@ class InterviewGraph:
         wf.add_node(InterviewNode.STORE_ANSWER.value, self._store_answer_node)
         
         wf.set_entry_point(InterviewNode.QUERY_VECTOR_DB.value)
-        logger.info(f"[InterviewGraph] Entry point set to: {InterviewNode.QUERY_VECTOR_DB.value}")
 
         wf.add_conditional_edges(InterviewNode.QUERY_VECTOR_DB.value, self._ok_or_error, {
             "ok": InterviewNode.GET_EXAMPLE_QUESTION.value,
@@ -56,7 +52,6 @@ class InterviewGraph:
         })
 
         compiled_graph = wf.compile()
-        logger.info("[InterviewGraph] Graph compiled successfully")
         return compiled_graph
     
 
@@ -71,14 +66,10 @@ class InterviewGraph:
     }
 
     async def _query_vector_db_node(self, state: InterviewState) -> InterviewState:
-        logger.info(f"[GET RESUME CONTEXT]: Retrieving resume context for session {state.session_id} with current step {state.current_step}")
-        
         if state.current_step in [InterviewProcessStep.GREETING, InterviewProcessStep.ROUTER]:
-            logger.info(f"[GET RESUME CONTEXT]: Skipping for {state.current_step.value} - no resume context needed")
             return state
         
         if not state.go_to_next_step:
-            logger.info(f"[GET RESUME CONTEXT]: Skipping query - not transitioning to next step")
             return state
         
         if not state.session_id:
@@ -88,7 +79,6 @@ class InterviewGraph:
         
         try:
             resume_context = await self.interview_session_service.get_resume_context(state.session_id)
-            logger.info(f"[GET RESUME CONTEXT]: Retrieved resume context: {resume_context}")
             
             if not resume_context:
                 logger.error(f"[GET RESUME CONTEXT]: No resume context found for session {state.session_id}")
@@ -102,7 +92,6 @@ class InterviewGraph:
             )
             
             if not relevant_sections:
-                logger.info(f"[GET RESUME CONTEXT]: No resume sections mapped for {state.current_step.value}")
                 return state
             
             context_parts = []
@@ -112,7 +101,6 @@ class InterviewGraph:
                     context_parts.append(f"=== {section_title} ===\n{resume_context[section]}")
             
             context_text = "\n\n".join(context_parts)
-            logger.info(f"[GET RESUME CONTEXT]: Retrieved context with {len(context_text)} characters from sections: {relevant_sections}")
             
             return state.model_copy(update={
                 "context_prompt": context_text,
@@ -125,11 +113,9 @@ class InterviewGraph:
             })
     
     async def _get_example_question_node(self, state: InterviewState) -> InterviewState:
-        logger.info(f"[GET EXAMPLE QUESTIONS]: Getting example questions for session {state.session_id} with current step {state.current_step}")
         try:
             if state.go_to_next_step:
                 if state.current_step in [InterviewProcessStep.GREETING, InterviewProcessStep.INTRO, InterviewProcessStep.WRAP_UP]:
-                    logger.info(f"[GET EXAMPLE QUESTIONS] Skipping for {state.current_step.value} - examples are embedded in prompt")
                     return state.model_copy(update={
                         "example_questions": [],
                     })
@@ -179,8 +165,6 @@ class InterviewGraph:
                 )
                 
                 example_questions = data["raw"].get("example_questions", [])
-                
-                logger.info(f"[GET EXAMPLE QUESTIONS] Generated example questions: {example_questions}")
             
             else:
                 example_questions = state.example_questions
@@ -196,10 +180,8 @@ class InterviewGraph:
             })
 
     async def _process_answer_node(self, state: InterviewState) -> InterviewState:
-        logger.info(f"[PROCESS ANSWER]: Processing answer for session {state.session_id} with current step {state.current_step}, go_to_next_step={state.go_to_next_step}")
         try:
             answer = await self.process_graph.invoke(state)
-            logger.info(f"[PROCESS ANSWER]: Process graph returned: current_step={answer.current_step}, go_to_next_step={answer.go_to_next_step}")
             return answer
         except Exception as e:
             logger.error(f"[PROCESS ANSWER]: Error processing answer: {str(e)}", exc_info=True)
@@ -208,7 +190,6 @@ class InterviewGraph:
             })
 
     async def _store_answer_node(self, state: InterviewState) -> InterviewState:
-        logger.info(f"[STORE ANSWER]: Storing answer for session {state.session_id} with current step {state.current_step}")
         try:
             return state
         except Exception as e:
@@ -217,7 +198,6 @@ class InterviewGraph:
             })
 
     async def invoke(self, session_id: str, user_input: str, position: str, selected_stages: list[str] = None) -> InterviewState:
-        logger.info(f"[INVOKE]: Invoking graph for session {session_id} with user input {user_input} and position {position}")
         if selected_stages is None:
             selected_stages = []
             

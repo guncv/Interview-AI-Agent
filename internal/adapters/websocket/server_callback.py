@@ -27,7 +27,6 @@ class WebSocketServerCallback:
                 logger.warning(f"[WebsocketServerCallback: handle start session conversation] WebSocket is not connected, skipping response")
                 return
             
-            logger.info(f"[WebsocketServerCallback: handle start session conversation] Sending interviewer turn start message")
             await client.websocket.send_text(json.dumps({
                 "type": WebSocketMessageType.INTERVIEWR_TURN_START,
                 "session_id": client.session_id
@@ -64,7 +63,6 @@ class WebSocketServerCallback:
 
     async def handle_segment_end(self, client: WebSocketClient, request: SegmentEndMessage):
         try:
-            logger.info(f"[WebSocketServerCallback: handle segment end] Request: {request}")
             if request.session_id != client.session_id:
                 raise ValueError(f"Session ID mismatch: {request.session_id} != {client.session_id}")
 
@@ -109,7 +107,6 @@ class WebSocketServerCallback:
             raise e
     
     async def handle_interviewer_audio_chunking(self, client: WebSocketClient, request: TTSAudioChunking):
-        logger.info(f"[WebsocketServerCallback: handle interviewer audio chunking] Called:")
         try:
             if request.session_id != client.session_id:
                 raise ValueError(f"Session ID mismatch: {request.session_id} != {client.session_id}")

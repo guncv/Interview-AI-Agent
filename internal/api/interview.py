@@ -12,7 +12,6 @@ interview_service = InterviewService()
 
 @router.get("/health")
 async def health_check_api():
-    logger.info("[Health Check API Called: ]")
     try:
         resp = await interview_service.health_check()
         return resp
@@ -24,7 +23,6 @@ async def health_check_api():
 
 @router.post("/interview")
 async def interview_api(request: InterviewRequest):
-    logger.info(f"[Interview API Called: ]")
     try:
         resp = await interview_service.interview(request)
         return resp
@@ -41,7 +39,6 @@ async def requirements_api(
     session_id: str= Form(...),
     resume_file: UploadFile = File(...),
 ):
-    logger.info(f"[Requirements API Called: ]")
     try:
         file_bytes = await resume_file.read()
 
@@ -53,7 +50,6 @@ async def requirements_api(
         )
 
         resp = await interview_service.requirements(request)
-        logger.info(f"[Requirements API Response]: {resp}")
         return resp
     except (InterviewSimulationException, Exception) as e:
         if not isinstance(e, InterviewSimulationException):

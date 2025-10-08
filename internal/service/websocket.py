@@ -33,15 +33,12 @@ class WebSocketService:
         return self._websocket_server_callback
         
     async def handle_segment_start(self, client: WebSocketClient, request: SegmentStartMessage):
-        logger.info(f"[WebSocketService: handle segment start]: Called")
         if request.session_id != client.session_id:
             raise ValueError(f"Session ID mismatch: {request.session_id} != {client.session_id}")
 
         client.current_segment_id = request.segment_id
 
     async def handle_audio_chunk(self, client: WebSocketClient, audio_message: AudioChunkMessage):
-        logger.info(f"[WebSocketService: handle audio chunk] Called: audio data present")
-
         try:
             self.redis_client.save_segment_audio(client.session_id, audio_message.segment_id, audio_message.audio_data)
 
@@ -50,13 +47,9 @@ class WebSocketService:
             raise e
         
     async def handle_interviewer_audio_chunking(self, client: WebSocketClient, message: str) -> int:
-        logger.info("[WebSocketService: handle_interviewer_audio_chunking] Called")
-
         try:
             chunking_count = 0
             async for chunk in self.tts_client.synthesize_stream(message):
-                logger.info("[WebSocketService: handle_interviewer_audio_chunking] Sending audio chunk")
-
                 tts_chunk = TTSAudioChunking(
                     type=WebSocketMessageType.INTERVIEWER_AUDIO_CHUNKING,
                     session_id=client.session_id,
@@ -77,8 +70,6 @@ class WebSocketService:
             raise
 
     async def send_response_and_audio(self, client: WebSocketClient, message_data):
-        logger.info("[WebSocketService: send_response_and_audio] Called")
-
         try:
             if not client.is_connected:
                 logger.warning(f"[WebSocketService: send_response_and_audio] WebSocket is not connected, skipping response")
@@ -107,8 +98,6 @@ class WebSocketService:
             raise
 
     async def get_interviewer_response(self, client: WebSocketClient, final_transcript: str):
-        logger.info("[WebSocketService: get_interviewer_response] Called")
-        
         message_data = await self.interview_graph.invoke(client.session_id, final_transcript, client.position, client.selected_stages)
 
         while True:
@@ -116,17 +105,13 @@ class WebSocketService:
                 await self.send_response_and_audio(client, message_data)
                 
             if message_data.current_step == InterviewProcessStep.COMPLETED:
-                logger.info(f"[WebSocketService: get_interviewer_response] Interview completed, clearing memory and state")
-                
                 try:
                     clearMemory(client.session_id)
-                    logger.info(f"[WebSocketService: get_interviewer_response] Chat memory cleared for session {client.session_id}")
                 except Exception as e:
                     logger.error(f"[WebSocketService: get_interviewer_response] Failed to clear memory: {e}")
                 
                 try:
                     clear_state(client.session_id)
-                    logger.info(f"[WebSocketService: get_interviewer_response] Graph state cleared for session {client.session_id}")
                 except Exception as e:
                     logger.error(f"[WebSocketService: get_interviewer_response] Failed to clear state: {e}")
 
@@ -138,7 +123,6 @@ class WebSocketService:
             message_data = await self.interview_graph.invoke(client.session_id, message_data.message, client.position, client.selected_stages)
         
         if message_data.current_step != InterviewProcessStep.COMPLETED:
-            logger.info(f"[WebSocketService: get_interviewer_response] Sending ending interviewer turn")
             await asyncio.sleep(1)
             await client.websocket.send_text(json.dumps({
                     "type": WebSocketMessageType.INTERVIEWR_TURN_END,
@@ -146,7 +130,6 @@ class WebSocketService:
                 }))
             
         if message_data.current_step == InterviewProcessStep.COMPLETED:
-            logger.info(f"[WebSocketService: get_interviewer_response] Sending interview completion message")
             await asyncio.sleep(0.5)
             await client.websocket.send_text(json.dumps({
                 "type": WebSocketMessageType.INTERVIEW_COMPLETED,

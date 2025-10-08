@@ -13,14 +13,12 @@ class JWTToken:
         self.algorithm = algorithm
 
     def verify_token(self, token: str):
-        logger.info(f"[JWTToken: verify_token] Verifying token: {token}")
         try:
             if not token:
                 logger.error(f"[JWTToken: verify_token] Token is empty or None")
                 raise InterviewSimulationException(error_code=InterviewSimulationErrorCodes.TOKEN_EXPIRED)
             
             payload = jwt.decode(token, self.secret_key, algorithms=[self.algorithm])
-            logger.info(f"[JWTToken: verify_token] Payload: {payload}")
             return payload
         except Exception as e:
             logger.error(f"[JWTToken: verify_token] Unexpected error: {e}")
