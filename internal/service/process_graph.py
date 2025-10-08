@@ -37,6 +37,7 @@ class InterviewProcessingGraph:
             InterviewProcessStep.ASK_PROJECT,
             InterviewProcessStep.TECHNICAL_QUESTION,
             InterviewProcessStep.BEHAVIORAL_QUESTION,
+            InterviewProcessStep.WRAP_UP,
         ]
         
     def _is_stage_enabled(self, stage: InterviewProcessStep, selected_stages: list[str]) -> bool:
@@ -74,6 +75,7 @@ class InterviewProcessingGraph:
         wf.add_node(InterviewProcessNode.TECHNICAL_QUESTION.value, self._technical_node)
         wf.add_node(InterviewProcessNode.BEHAVIORAL_QUESTION.value, self._behavior_node)
         wf.add_node(InterviewProcessNode.WRAP_UP.value, self._wrap_up_node)
+        wf.add_node(InterviewProcessNode.COMPLETED.value, self._completed_node)
         wf.add_node(InterviewProcessNode.ERROR_HANDLER.value, self._error_handler_node)
 
         wf.set_entry_point(InterviewProcessNode.ROUTER.value)
@@ -89,6 +91,7 @@ class InterviewProcessingGraph:
                 InterviewProcessStep.TECHNICAL_QUESTION: InterviewProcessNode.TECHNICAL_QUESTION.value,
                 InterviewProcessStep.BEHAVIORAL_QUESTION: InterviewProcessNode.BEHAVIORAL_QUESTION.value,
                 InterviewProcessStep.WRAP_UP: InterviewProcessNode.WRAP_UP.value,
+                InterviewProcessStep.COMPLETED: InterviewProcessNode.COMPLETED.value,
                 InterviewProcessStep.ERROR_HANDLER: InterviewProcessNode.ERROR_HANDLER.value,
             },
         )
@@ -100,6 +103,7 @@ class InterviewProcessingGraph:
             InterviewProcessNode.ASK_PROJECT.value,
             InterviewProcessNode.TECHNICAL_QUESTION.value,
             InterviewProcessNode.BEHAVIORAL_QUESTION.value,
+            InterviewProcessNode.WRAP_UP.value,
         ]:
             wf.add_conditional_edges(
                 node,
@@ -110,8 +114,8 @@ class InterviewProcessingGraph:
                 },
             )
 
-        wf.add_edge(InterviewProcessNode.WRAP_UP.value, END)
         wf.add_edge(InterviewProcessNode.ERROR_HANDLER.value, END)
+        wf.add_edge(InterviewProcessNode.COMPLETED.value, END)
         
         return wf.compile()
 
@@ -194,6 +198,9 @@ class InterviewProcessingGraph:
             InterviewProcessStep.WRAP_UP,
             deterministic_next_step=InterviewProcessStep.COMPLETED,
         )
+        
+    def _completed_node(self, state: InterviewState) -> InterviewState:
+        return state
 
     def _error_handler_node(self, state: InterviewState) -> InterviewState:
         logger.error(f"[ERROR HANDLER] Processing error: {state.error_message}")
