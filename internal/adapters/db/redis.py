@@ -99,21 +99,21 @@ class RedisClient:
     def release_lock(self, session_id: str) -> None:
         self.redis.delete(f"{LOCK_PREFIX}:{session_id}")
     
-    async def save_interview_bias_prompt(self, session_id: str, bias_prompt: str, ttl_seconds: int) -> None:
+    def save_interview_bias_prompt(self, session_id: str, bias_prompt: str, ttl_seconds: int) -> None:
         key = self._bias_prompt_key(session_id)
         self.redis.setex(key, ttl_seconds, bias_prompt)
     
-    async def load_interview_bias_prompt(self, session_id: str) -> Optional[str]:
+    def load_interview_bias_prompt(self, session_id: str) -> Optional[str]:
         key = self._bias_prompt_key(session_id)
         resp = self.redis.get(key)
         return resp
     
-    async def save_resume_context(self, session_id: str, resume_context: Dict[str, Any], ttl_seconds: int) -> None:
+    def save_resume_context(self, session_id: str, resume_context: Dict[str, Any], ttl_seconds: int) -> None:
         key = self._resume_context_key(session_id)
         ttl = ttl_seconds
         self.redis.setex(key, ttl, json.dumps(resume_context, ensure_ascii=False, default=self._default_json_converter))
     
-    async def load_resume_context(self, session_id: str) -> Dict[str, Any]:
+    def load_resume_context(self, session_id: str) -> Dict[str, Any]:
         key = self._resume_context_key(session_id)
         raw = self.redis.get(key)
         if not raw:

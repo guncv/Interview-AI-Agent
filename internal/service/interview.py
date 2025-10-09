@@ -80,8 +80,8 @@ class InterviewService:
             bias_terms = result.bias_terms
             resume_json = result.resume_json
             
-            await redis_client.save_resume_context(session_id, resume_json, RedisKeys.RESUME_CONTEXT_TTL_SECONDS.value)
-            await redis_client.save_interview_bias_prompt(session_id, bias_terms, RedisKeys.BIAS_PROMPT_TTL_SECONDS.value)
+            redis_client.save_resume_context(session_id, resume_json, RedisKeys.RESUME_CONTEXT_TTL_SECONDS.value)
+            redis_client.save_interview_bias_prompt(session_id, bias_terms, RedisKeys.BIAS_PROMPT_TTL_SECONDS.value)
             await postgres_client.update_session_bias_and_context(
                 session_id=session_id,
                 bias_prompt=bias_terms,

@@ -14,7 +14,7 @@ class InterviewSessionService:
         
     async def get_bias_prompt(self, session_id: str) -> str:
         try:
-            bias_prompt = await self.cache_client.load_interview_bias_prompt(session_id)
+            bias_prompt = self.cache_client.load_interview_bias_prompt(session_id)
             if bias_prompt:
                 return bias_prompt
         except Exception as e:
@@ -24,7 +24,7 @@ class InterviewSessionService:
         try:
             bias_prompt = await self.db_client.get_bias_prompt_by_session_id(session_id)
             if bias_prompt:
-                await self.cache_client.save_interview_bias_prompt(session_id, bias_prompt, RedisKeys.BIAS_PROMPT_TTL_SECONDS.value)
+                self.cache_client.save_interview_bias_prompt(session_id, bias_prompt, RedisKeys.BIAS_PROMPT_TTL_SECONDS.value)
                 return bias_prompt
             else:
                 return ""
@@ -34,7 +34,7 @@ class InterviewSessionService:
     
     async def get_resume_context(self, session_id: str) -> Dict[str, Any]:
         try:
-            resume_context = await self.cache_client.load_resume_context(session_id)
+            resume_context = self.cache_client.load_resume_context(session_id)
             if resume_context:
                 return resume_context
             
@@ -46,7 +46,7 @@ class InterviewSessionService:
             
             if resume_context:
                 try:
-                    await self.cache_client.save_resume_context(session_id, resume_context, RedisKeys.RESUME_CONTEXT_TTL_SECONDS.value)
+                    self.cache_client.save_resume_context(session_id, resume_context, RedisKeys.RESUME_CONTEXT_TTL_SECONDS.value)
                 except Exception as cache_save_error:
                     logger.warning(f"[InterviewSessionService] Failed to cache resume_context: {cache_save_error}")
             else:
