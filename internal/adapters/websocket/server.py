@@ -19,7 +19,6 @@ class WebSocketServer:
         session_id = params["session_id"]
         resume_id = params["resume_id"]
         position = params["position"]
-        bias_prompt = params["bias_prompt"]
         selected_stages = params["selected_stages"]
         
         if session_id in self.active_connections:
@@ -32,7 +31,6 @@ class WebSocketServer:
             session_id=session_id,
             resume_id=resume_id,
             position=position,
-            bias_prompt=bias_prompt,
             selected_stages=selected_stages,
         )
         self.active_connections[session_id] = client

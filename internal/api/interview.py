@@ -49,8 +49,8 @@ async def requirements_api(
             session_id=session_id,
         )
 
-        resp = await interview_service.requirements(request)
-        return resp
+        await interview_service.requirements(request)
+
     except (InterviewSimulationException, Exception) as e:
         if not isinstance(e, InterviewSimulationException):
             e = InterviewSimulationException(

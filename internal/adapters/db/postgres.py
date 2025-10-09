@@ -86,7 +86,23 @@ class PostgresClient(DatabasePort):
             logger.error(f"[PostgresClient] Command execution failed: {e}")
             raise
     
-    async def get_resume_context_by_session_id(self, session_id: str) -> Optional[Dict[str, Any]]:
+    async def get_bias_prompt_by_session_id(self, session_id: str) -> Optional[str]:
+        query = """
+            SELECT bias_prompt
+            FROM interview_sessions
+            WHERE id = %(session_id)s
+            AND (soft_delete = false OR soft_delete IS NULL)
+            LIMIT 1
+        """
+        
+        results = await self.execute_query(query, {"session_id": session_id})
+        
+        if not results or not results[0].get("bias_prompt"):
+            return None
+        
+        return results[0]["bias_prompt"]
+    
+    async def get_resume_context_by_session_id(self, session_id: str) -> Dict[str, Any]:
         query = """
             SELECT resume_context
             FROM interview_sessions
@@ -98,7 +114,7 @@ class PostgresClient(DatabasePort):
         results = await self.execute_query(query, {"session_id": session_id})
         
         if not results or not results[0].get("resume_context"):
-            return None
+            return {}
         
         resume_context = results[0]["resume_context"]
         
@@ -106,9 +122,37 @@ class PostgresClient(DatabasePort):
             try:
                 resume_context = json.loads(resume_context)
             except json.JSONDecodeError:
-                return None
+                return {}
         
         return resume_context
+    
+    async def update_session_bias_and_context(
+        self, 
+        session_id: str, 
+        bias_prompt: str, 
+        resume_context: Dict[str, Any]
+    ) -> None:
+        command = """
+            UPDATE interview_sessions
+            SET 
+                bias_prompt = %(bias_prompt)s,
+                resume_context = %(resume_context)s,
+                updated_at = NOW()
+            WHERE id = %(session_id)s
+            AND (soft_delete = false OR soft_delete IS NULL)
+        """
+        
+        params = {
+            "session_id": session_id,
+            "bias_prompt": bias_prompt,
+            "resume_context": json.dumps(resume_context, ensure_ascii=False)
+        }
+        
+        try:
+            self.execute_command(command, params)
+        except Exception as e:
+            logger.error(f"[PostgresClient] Failed to update session {session_id}: {e}")
+            raise
     
     def close(self):
         self.disconnect()

@@ -28,8 +28,11 @@ class ResumeStructured(BaseModel):
     is_experience: bool
 
 class RequirementsResponse(BaseModel):
-    bias_prompt: str
-    resume_context: str
+    resume_text: str
+
+class ProcessResumeTextResponse(BaseModel):
+    bias_terms: str
+    resume_json: dict
     
 class GetOverallSummaryRequest(BaseModel):
     summary_md: List[str]
@@ -152,3 +155,9 @@ class PostProcessedCriteriaResp(BaseModel):
 class ExampleQuestionsResponse(BaseModel):
     example_questions: List[str]
 
+class InterviewTask(BaseModel):
+    type: str
+    payload: Dict[str, Any]
+    
+class InterviewTaskType(str, Enum):
+    EXTRACT_BIAS_PROMPT_AND_RESUME_CONTEXT = "task:extract_bias_prompt_and_resume_context"
