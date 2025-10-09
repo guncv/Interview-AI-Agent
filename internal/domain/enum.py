@@ -1,4 +1,5 @@
 from enum import Enum
+from logging import CRITICAL
 
 class WebSocketMessageType(str, Enum):
     START_SESSION_CONVERSATION = "start_session_conversation"
@@ -29,3 +30,6 @@ class WebSocketErrorCode(str, Enum):
     INVALID_SEGMENT_END = "invalid_segment_end"
     SESSION_ID_MISMATCH = "session_id_mismatch"
     SEGMENT_ID_MISMATCH = "segment_id_mismatch"
+    
+class QueueName(str, Enum):
+    AI_AGENT = "asynq:ai_agent"

@@ -9,7 +9,7 @@ from internal.adapters.log.logger import logger
 from internal.config.config import nested_config as config
 from internal.domain.models.speech_recognize import SpeechRecognize, Word
 from internal.domain.ports.stt_port import STTPort
-from internal.adapters.db.redis import redis_client
+from internal.service.interview_session import InterviewSessionService
 
 
 class WhisperSpeechToText(STTPort):
@@ -17,8 +17,9 @@ class WhisperSpeechToText(STTPort):
         self.api_key = config["stt"]["whisper_api_key"]
         self.client = OpenAI(api_key=self.api_key)
         self.model = "whisper-1"
+        self.interview_session_service = InterviewSessionService()
 
-    async def transcribe(self, audio_chunk: bytes, session_id: str, bias_prompt: str) -> SpeechRecognize:
+    async def transcribe(self, audio_chunk: bytes, session_id: str) -> SpeechRecognize:
         try:
             with tempfile.TemporaryDirectory() as tmpdir:
                 input_path = os.path.join(tmpdir, "input.webm")
@@ -44,6 +45,7 @@ class WhisperSpeechToText(STTPort):
                     wav_buffer = io.BytesIO(f.read())
                     wav_buffer.name = "audio.wav"
             
+            bias_prompt = await self.interview_session_service.get_bias_prompt(session_id)
             if bias_prompt:
                 if len(bias_prompt) > 896:
                     bias_prompt = bias_prompt[:896]

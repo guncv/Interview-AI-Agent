@@ -8,6 +8,8 @@ from internal.shared.except_handler import validation_exception_handler, respons
 from internal.shared.exception import InterviewSimulationException
 from internal.api.routes.route import api_router_v1
 from internal.adapters.log.logger import logger
+from internal.adapters.queue.comsumer import TaskConsumer
+import asyncio
 
 app = FastAPI(
     title=api_config.get("API_TITLE", "Interview Simulation API"),
@@ -42,3 +44,11 @@ instrumentator = Instrumentator(
 )
 
 instrumentator.instrument(app).expose(app, include_in_schema=False)
+
+consumer_instance = None
+
+@app.on_event("startup")
+async def startup_event():
+    global consumer_instance
+    consumer_instance = TaskConsumer()
+    asyncio.create_task(consumer_instance.consume_tasks())

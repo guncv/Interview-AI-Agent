@@ -1,17 +1,38 @@
-from typing import Optional
+from typing import Optional, Dict, Any
 from internal.shared.exception import InterviewSimulationException
 from internal.domain.exception import InterviewSimulationErrorCodes
 from internal.adapters.log.logger import logger
 from internal.adapters.db.postgres import postgres_client
 from internal.adapters.db.redis import redis_client
+from internal.domain.models.redis import RedisKeys
 
 
 class InterviewSessionService:
     def __init__(self):
         self.db_client = postgres_client
         self.cache_client = redis_client
+        
+    async def get_bias_prompt(self, session_id: str) -> str:
+        try:
+            bias_prompt = await self.cache_client.load_interview_bias_prompt(session_id)
+            if bias_prompt:
+                return bias_prompt
+        except Exception as e:
+            logger.error(f"[Get Bias Prompt]: Error getting bias prompt: {e}")
+            raise
+        
+        try:
+            bias_prompt = await self.db_client.get_bias_prompt_by_session_id(session_id)
+            if bias_prompt:
+                await self.cache_client.save_interview_bias_prompt(session_id, bias_prompt, RedisKeys.BIAS_PROMPT_TTL_SECONDS.value)
+                return bias_prompt
+            else:
+                return ""
+        except Exception as e:
+            logger.error(f"[Get Bias Prompt]: Error getting bias prompt: {e}")
+            raise
     
-    async def get_resume_context(self, session_id: str) -> Optional[dict]:
+    async def get_resume_context(self, session_id: str) -> Dict[str, Any]:
         try:
             resume_context = await self.cache_client.load_resume_context(session_id)
             if resume_context:
@@ -23,14 +44,13 @@ class InterviewSessionService:
         try:
             resume_context = await self.db_client.get_resume_context_by_session_id(session_id)
             
-            if not resume_context:
+            if resume_context:
+                try:
+                    await self.cache_client.save_resume_context(session_id, resume_context, RedisKeys.RESUME_CONTEXT_TTL_SECONDS.value)
+                except Exception as cache_save_error:
+                    logger.warning(f"[InterviewSessionService] Failed to cache resume_context: {cache_save_error}")
+            else:
                 logger.warning(f"[InterviewSessionService] No resume_context found for session_id: {session_id}")
-                return None
-            
-            try:
-                await self.cache_client.save_resume_context(session_id, resume_context)
-            except Exception as cache_save_error:
-                logger.warning(f"[InterviewSessionService] Failed to cache resume_context: {cache_save_error}")
             
             return resume_context
         

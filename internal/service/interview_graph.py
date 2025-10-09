@@ -80,12 +80,6 @@ class InterviewGraph:
         try:
             resume_context = await self.interview_session_service.get_resume_context(state.session_id)
             
-            if not resume_context:
-                logger.error(f"[GET RESUME CONTEXT]: No resume context found for session {state.session_id}")
-                return state.model_copy(update={
-                    "error_message": "Resume context not found. Please upload resume first."
-                })
-            
             relevant_sections = self.resume_section_map.get(
                 state.current_step,
                 []
@@ -99,6 +93,9 @@ class InterviewGraph:
                 if section in resume_context and resume_context[section]:
                     section_title = section.replace("_", " ").title()
                     context_parts.append(f"=== {section_title} ===\n{resume_context[section]}")
+            
+            if not context_parts:
+                logger.warning(f"[GET RESUME CONTEXT]: No relevant resume data found for session {state.session_id}")
             
             context_text = "\n\n".join(context_parts)
             
