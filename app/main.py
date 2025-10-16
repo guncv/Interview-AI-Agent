@@ -1,14 +1,13 @@
 from fastapi import FastAPI
 
 from fastapi.middleware.cors import CORSMiddleware
-from internal.config.config import api_config
+from core.config.config import api_config
 from fastapi.exceptions import RequestValidationError, ResponseValidationError
 from prometheus_fastapi_instrumentator import Instrumentator
-from internal.shared.except_handler import validation_exception_handler, response_validation_exception_handler
-from internal.shared.exception import InterviewSimulationException
-from internal.api.routes.route import api_router_v1
-from internal.adapters.log.logger import logger
-from internal.adapters.queue.comsumer import TaskConsumer
+from core.utils.except_handler import validation_exception_handler, response_validation_exception_handler
+from core.utils.exception import InterviewSimulationException
+from app.router import api_router_v1
+from tasks.comsumer import TaskConsumer
 import asyncio
 
 app = FastAPI(

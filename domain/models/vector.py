@@ -1,0 +1,3 @@
+class VectorCollections:
+    RESUMES = "resume"
+
