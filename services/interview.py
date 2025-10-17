@@ -3,7 +3,7 @@ from domain.models.interview import HealthCheckResponse, InterviewRequest, Proce
 from core.utils.exception import InterviewSimulationException
 from domain.enums.exception import InterviewSimulationErrorCodes
 from core.log.logger import logger
-from services.interview_graph import InterviewGraph
+from services.interview_orchestrator import InterviewOrchestrator
 from infrastructure.redis.redis import redis_client
 from infrastructure.db.postgres import postgres_client
 from services.prompts.bias_prompt import BIAS_PROMPT
@@ -22,7 +22,7 @@ from domain.models.redis import RedisKeys
 
 class InterviewService:
     def __init__(self):
-        self.interview_graph = InterviewGraph()
+        self.orchestrator = InterviewOrchestrator()
         self.redis_client = redis_client
         self.db_client = postgres_client
         self.llm = loadLLM("interview")
@@ -49,11 +49,19 @@ class InterviewService:
 
     async def interview(self, request: InterviewRequest):
         try:
-            resp = self.interview_graph.invoke(request.session_id, request.user_input)
+            # Use the new orchestrator with proper RAG and conversation state machine
+            resp = await self.orchestrator.process_message(
+                session_id=request.session_id,
+                user_input=request.user_input,
+                position=request.position,
+                selected_stages=request.selected_stages
+            )
+
+            # Cache the state in Redis for quick access
             redis_client.save_interview_state(request.session_id, resp)
 
             return resp
-        
+
         except (InterviewSimulationException, Exception) as e:
             if type(e) != InterviewSimulationException:
                 e = InterviewSimulationException(

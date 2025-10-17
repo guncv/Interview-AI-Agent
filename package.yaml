@@ -32,17 +32,6 @@ dependencies:
       - sentence-transformers
       - redis==5.0.7
       - langchain-deepseek
-      - langchain-community
-      - langchain-anthropic
-      - langgraph
-      - langgraph-checkpoint-sqlite
-      - requests
-      - loguru
-      - coloredlogs
-      - python-json-logger
-      - prometheus-fastapi-instrumentator
-      - gTTS
-      - sentence-transformers
       - pymupdf
       - websockets
       - PyJWT
@@ -50,3 +39,4 @@ dependencies:
       - language-tool-python>=2.8.0
       - chromadb
       - psycopg2-binary
+      - llama-index>=0.10.0

@@ -1,3 +1,21 @@
+"""
+⚠️ DEPRECATED: This file is no longer used in the new architecture.
+
+Use `interview_orchestrator.py` and `conversation_state_machine.py` instead.
+
+This file has been replaced by:
+1. interview_orchestrator.py - Handles session management and orchestration
+2. conversation_state_machine.py - Handles conversation flow with proper RAG
+
+The new architecture:
+- Supports multi-turn conversations in each state
+- Uses proper RAG retrieval at conversation time (not just example question generation)
+- Cleaner separation between orchestration and conversation logic
+- Better error handling and state management
+
+See: services/interview_orchestrator.py and services/conversation_state_machine.py
+"""
+
 from core.log.logger import logger
 from domain.models.interview import InterviewNode, InterviewState, InterviewProcessStep, ExampleQuestionsResponse
 from langgraph.graph import StateGraph, END
@@ -10,12 +28,15 @@ from infrastructure.llm.loader import loadLLM
 from langchain_core.runnables import RunnableWithMessageHistory, RunnableLambda
 from infrastructure.llm.loader import getChatHistory
 from services.interview_session import InterviewSessionService
+from services.rag_retrieval import RAGRetrievalService
+from domain.models.vector import VectorCollections
 
 class InterviewGraph:
     def __init__(self):
         self.graph = self._build_graph()
         self.process_graph = InterviewProcessingGraph()
         self.interview_session_service = InterviewSessionService()
+        self.rag_service = RAGRetrievalService(collection_name=VectorCollections.RESUMES)
         self.llm = loadLLM("example_question")
 
     def _ok_or_error(self, state: InterviewState) -> str:
@@ -55,58 +76,59 @@ class InterviewGraph:
         return compiled_graph
     
 
-    resume_section_map = {
-        InterviewProcessStep.ROUTER: [],
-        InterviewProcessStep.INTRO: ["is_experience"],
-        InterviewProcessStep.ASK_EXPERIENCE: ["experience"],
-        InterviewProcessStep.ASK_PROJECT: ["project"],
-        InterviewProcessStep.TECHNICAL_QUESTION: ["skill_technical"],
-        InterviewProcessStep.BEHAVIORAL_QUESTION: ["behavior"],
-        InterviewProcessStep.WRAP_UP: [],
-    }
-
     async def _query_vector_db_node(self, state: InterviewState) -> InterviewState:
+        """
+        Query vector database using RAG to retrieve relevant resume context.
+        This replaces the old hardcoded section mapping approach with semantic search.
+        """
+        # Skip RAG for stages that don't need context
         if state.current_step in [InterviewProcessStep.GREETING, InterviewProcessStep.ROUTER]:
             return state
-        
+
+        # Only retrieve context when transitioning to a new step
         if not state.go_to_next_step:
             return state
-        
+
         if not state.session_id:
             return state.model_copy(update={
                 "error_message": "Session ID is required for resume context retrieval"
             })
-        
+
         try:
-            resume_context = await self.interview_session_service.get_resume_context(state.session_id)
-            
-            relevant_sections = self.resume_section_map.get(
-                state.current_step,
-                []
+            logger.info(f"[RAG] Retrieving context for stage: {state.current_step.name}, session: {state.session_id}")
+
+            # Use RAG to retrieve relevant context based on the current interview stage
+            rag_result = await self.rag_service.retrieve_context_for_stage(
+                session_id=state.session_id,
+                current_step=state.current_step,
+                position=state.position,
+                k=5  # Retrieve top 5 most relevant chunks
             )
-            
-            if not relevant_sections:
-                return state
-            
-            context_parts = []
-            for section in relevant_sections:
-                if section in resume_context and resume_context[section]:
-                    section_title = section.replace("_", " ").title()
-                    context_parts.append(f"=== {section_title} ===\n{resume_context[section]}")
-            
-            if not context_parts:
-                logger.warning(f"[GET RESUME CONTEXT]: No relevant resume data found for session {state.session_id}")
-            
-            context_text = "\n\n".join(context_parts)
-            
+
+            context_text = rag_result.get("context", "")
+            num_chunks = rag_result.get("num_chunks", 0)
+
+            if not context_text:
+                logger.warning(
+                    f"[RAG] No relevant resume data found for session {state.session_id} "
+                    f"at stage {state.current_step.name}"
+                )
+            else:
+                logger.info(
+                    f"[RAG] Retrieved {num_chunks} chunks for session {state.session_id} "
+                    f"at stage {state.current_step.name}"
+                )
+
             return state.model_copy(update={
                 "context_prompt": context_text,
             })
-            
+
         except Exception as e:
-            logger.error(f"[GET RESUME CONTEXT]: Unexpected error - {str(e)}", exc_info=True)
+            logger.error(f"[RAG] Unexpected error during retrieval - {str(e)}", exc_info=True)
+            # Don't fail the entire interview - continue with empty context
             return state.model_copy(update={
-                "error_message": f"Resume context retrieval failed: {str(e)}"
+                "context_prompt": "",
+                "error_message": ""  # Clear error to allow continuation
             })
     
     async def _get_example_question_node(self, state: InterviewState) -> InterviewState:

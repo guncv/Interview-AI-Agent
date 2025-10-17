@@ -1,3 +1,17 @@
+"""
+⚠️ DEPRECATED: This file is no longer used in the new architecture.
+
+Use `conversation_state_machine.py` instead.
+
+This file has been replaced by a cleaner, conversation-based architecture that:
+- Uses proper RAG retrieval at each turn
+- Supports multi-turn conversations in each state
+- Has better separation of concerns
+- Follows agent-based design patterns
+
+See: services/conversation_state_machine.py
+"""
+
 from langchain_core.runnables import RunnableLambda
 from langgraph.graph import StateGraph, END
 from domain.models.interview import InterviewProcessStep, InterviewProcessNode, ProcessPromptResponse, InterviewState

@@ -9,6 +9,8 @@ class HealthCheckResponse(BaseModel):
 class InterviewRequest(BaseModel):
     session_id: str
     user_input: str
+    position: str = ""
+    selected_stages: List[str] = []
 
 class InterviewResponse(BaseModel):
     message: str
